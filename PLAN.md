@@ -107,6 +107,29 @@ Full results table in `DATA_NOTES.md` (Phase 3 section).
 Phase 4 v1 is complete. The remaining items (HF release, peer review) are
 about submission logistics rather than research content.
 
+## Phase v2 — integration ✅ DONE
+
+Implemented the three v2 items from the original future-work list, plus a
+fourth one (cross-encoder) that turned into the headline result:
+
+- [x] **v2.1 E5-cosine hard-neg re-mining** (`src/benchmark/mine_hard_negatives_v2.py`). 631K E5-cosine same-country negatives replace the noisy token-overlap fallback; coverage rises from ~20K to all 31,714 plausibly-real predecessors (mean 20.6 negs each).
+- [x] **v2.2 Transitive successor positives** (`src/benchmark/transitive_positives.py`). 1,372 chained pairs from depths 2–4.
+- [x] **v2.3 Bi-encoder retrain** (`method_v2_full`). Hits@1 0.249 / 0.292 / 0.500 — comparable to v1 best. Erases the v1 "hard negs hurt" finding; in-batch alone is now tied with explicit-hard-neg training.
+- [x] **v2.4 Cross-encoder fine-tune** (`src/method/train_cross_encoder.py`). The headline v2 result:
+
+| Split | Hits@1 | AUROC | F1 |
+|---|:-:|:-:|:-:|
+| time | **0.605** (+34.7 pp vs v1) | **0.836** | **0.61** |
+| event | **0.564** (+26.9 pp vs v1) | **0.825** | **0.58** |
+| jurisdiction | **0.750** (+23.9 pp vs v1) | **0.868** | **0.67** |
+
+First method to lift AUROC above 0.5 on the time/event splits — the
+anti-correlation regime is structurally a bi-encoder problem; joint
+encoding escapes it.
+
+Full v2 numbers + ablation are documented in DATA_NOTES.md "v2 integration"
+section; paper draft has been updated to reflect both methods.
+
 ## Phase 5 — Submit + outreach (Week 12)
 
 - arXiv preprint: Sep 1, 2026.

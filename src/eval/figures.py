@@ -20,22 +20,26 @@ import pandas as pd
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "paper", "figures")
 
 PALETTE = {
-    "exact_name":       "#999999",
-    "token_set":        "#bbbbbb",
-    "tfidf_char":       "#888888",
-    "sentence_encoder": "#377eb8",
-    "method_no_state":  "#a6cee3",
-    "method_no_hard":   "#4daf4a",
-    "method_full":      "#e41a1c",
+    "exact_name":         "#999999",
+    "token_set":          "#bbbbbb",
+    "tfidf_char":         "#888888",
+    "sentence_encoder":   "#377eb8",
+    "method_no_state":    "#a6cee3",
+    "method_no_hard":     "#4daf4a",
+    "method_full":        "#e41a1c",
+    "method_v2_full":     "#984ea3",
+    "method_v2_crossenc": "#ff7f00",
 }
 PRETTY = {
-    "exact_name":       "exact-name",
-    "token_set":        "token-set",
-    "tfidf_char":       "TF-IDF char",
-    "sentence_encoder": "E5-small (zero-shot)",
-    "method_no_state":  "method (no state)",
-    "method_no_hard":   "method (no hard negs)",
-    "method_full":      "method (full)",
+    "exact_name":         "exact-name",
+    "token_set":          "token-set",
+    "tfidf_char":         "TF-IDF char",
+    "sentence_encoder":   "E5-small (zero-shot)",
+    "method_no_state":    "method (no state)",
+    "method_no_hard":     "method (no hard negs)",
+    "method_full":        "method (full)",
+    "method_v2_full":     "method v2 (bi)",
+    "method_v2_crossenc": "method v2 (cross)",
 }
 SPLIT_PRETTY = {
     "split_time": "Held-out time",
@@ -83,11 +87,12 @@ def fig2_main_results(data_dir, out_dir):
     pv = h1.pivot(index="baseline", columns="split", values="value")
 
     order = ["exact_name", "token_set", "tfidf_char", "sentence_encoder",
-             "method_no_state", "method_no_hard", "method_full"]
-    pv = pv.reindex(order)
+             "method_no_state", "method_no_hard", "method_full",
+             "method_v2_full", "method_v2_crossenc"]
+    pv = pv.reindex([b for b in order if b in pv.index])
     splits = ["split_time", "split_event", "split_jurisdiction"]
 
-    fig, ax = plt.subplots(figsize=(7.0, 3.2))
+    fig, ax = plt.subplots(figsize=(8.5, 3.4))
     x = np.arange(len(pv.index))
     width = 0.27
     for i, s in enumerate(splits):
@@ -101,7 +106,7 @@ def fig2_main_results(data_dir, out_dir):
     ax.set_title("Lifecycle-aware ER: method vs baselines, by held-out split")
     ax.legend(fontsize=8, frameon=False, loc="upper left")
     ax.grid(axis="y", linestyle=":", alpha=0.5)
-    ax.set_ylim(0, max(0.6, pv.values.max() * 1.1))
+    ax.set_ylim(0, max(0.85, np.nanmax(pv.values) * 1.1))
     fig.tight_layout()
     p = os.path.join(out_dir, "fig2_main_results.pdf")
     fig.savefig(p)
@@ -117,16 +122,17 @@ def fig3_per_event_type(data_dir, out_dir):
     # Pick the most populous event types
     n_per = pet.groupby("event_type")["n_anchors"].first().sort_values(ascending=False)
     top_types = list(n_per.head(5).index)
-    keep_baselines = ["sentence_encoder", "method_no_state",
-                       "method_no_hard", "method_full"]
+    keep_baselines = ["sentence_encoder", "method_full",
+                       "method_v2_full", "method_v2_crossenc"]
     sub = pet[pet["event_type"].isin(top_types) & pet["baseline"].isin(keep_baselines)]
     pv = sub.pivot(index="event_type", columns="baseline", values="hits1")
-    pv = pv.reindex(top_types)[keep_baselines]
+    keep_present = [b for b in keep_baselines if b in pv.columns]
+    pv = pv.reindex(top_types)[keep_present]
 
-    fig, ax = plt.subplots(figsize=(7.0, 3.0))
+    fig, ax = plt.subplots(figsize=(8.0, 3.2))
     x = np.arange(len(pv.index))
     width = 0.20
-    colors = ["#377eb8", "#a6cee3", "#4daf4a", "#e41a1c"]
+    colors = ["#377eb8", "#e41a1c", "#984ea3", "#ff7f00"][:len(keep_present)]
     for i, b in enumerate(pv.columns):
         ax.bar(x + (i - 1.5) * width, pv[b].values, width,
                label=PRETTY[b], color=colors[i],

@@ -26,8 +26,9 @@ sources required.
 - [ ] LLM-pairwise baseline (scaffold ready; needs API key + budget)
 - [x] Method (v1): lifecycle-aware bi-encoder fine-tuned on E5-small with state features + hard negatives. **+5–8 pp Hits@1 over zero-shot E5 across all splits.** Two ablations run. `src/method/train.py`
 - [x] Paper draft + datasheet + figures (Phase 4): `paper/draft.tex`, `paper/datasheet.md`, `paper/figures/*.pdf`. ~9 pages, Gebru-template datasheet appendix.
+- [x] **v2 integration:** E5-cosine hard-neg re-mining (`src/benchmark/mine_hard_negatives_v2.py`), transitive successor positives (`src/benchmark/transitive_positives.py`), v2 bi-encoder retrain, and a fine-tuned cross-encoder (`src/method/train_cross_encoder.py`). **Cross-encoder lifts Hits@1 to 0.605 / 0.564 / 0.750 on the three splits — +24-35 pp over the best bi-encoder, and the first method to break AUROC > 0.5 on the time/event splits.**
 - [ ] HF Datasets release (manual upload after paper submission).
-- [ ] Method v2: cleaner hard-neg mining (E5 cosine instead of token overlap); successor-chain transitive positives; possibly bigger backbone (E5-large / BGE-large) with GPU.
+- [ ] Method v3: explicit modeling of parent/subsidiary edges (the one negative class the cross-encoder regressed on); possibly bigger backbones (E5-large / BGE-large) with GPU.
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
 - [ ] Write-up + arXiv preprint
 - [ ] Submit (target: ICAIF 2026 workshop primary, NeurIPS 2026 D&B stretch)
@@ -104,13 +105,32 @@ Each variant trains for 3 epochs at batch 32, learning rate 2e-5, and writes
 26K positives that fall in `train` for *all three* split regimes — strict no-
 leakage. Default device is Apple MPS if available, else CUDA, else CPU.
 
+## v2 pipeline (in addition to Phase 1-3)
+
+```bash
+# v2 hard-neg re-mining via E5 cosine (~7 min on Apple MPS)
+python3 src/benchmark/mine_hard_negatives_v2.py --data data/
+
+# transitive successor-chain positives (~3 s)
+python3 src/benchmark/transitive_positives.py --data data/
+
+# v2 bi-encoder retrain (~7 min)
+python3 src/method/train.py --variant v2_full --data data/
+
+# v2 cross-encoder fine-tune (~10 min train + 7 min scoring on MPS)
+python3 src/method/train_cross_encoder.py --data data/
+
+# eval (combines v1 + v2 numbers in one table)
+python3 src/eval/evaluate.py --data data/
+```
+
 ## Paper draft
 
 `paper/draft.tex` is a ~9-page LaTeX draft of the TemporalLink paper, with
-the full experimental story, three figures, and a Gebru-style datasheet
-(`paper/datasheet.md`) as appendix. The draft uses the standard `article`
-class — swap to the venue style file at submission time. See
-`paper/README.md` for compile instructions.
+the full experimental story (bi-encoder + cross-encoder methods, three
+figures, Gebru-style datasheet at `paper/datasheet.md`). The draft uses
+the standard `article` class — swap to the venue style file at submission
+time. See `paper/README.md` for compile instructions.
 
 ## License
 

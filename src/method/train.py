@@ -35,7 +35,7 @@ import pyarrow.parquet as pq
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-VARIANTS = ("full", "no_state", "no_hard", "zero_shot")
+VARIANTS = ("full", "no_state", "no_hard", "zero_shot", "v2_full")
 
 def format_entity(name, country, form, variant):
     name = (name or "").strip() or "(unknown)"
@@ -104,15 +104,48 @@ def main():
     pos_train = pos[is_safe].copy()
     print(f"  train positives (no-test in any split): {len(pos_train):,}",
           file=sys.stderr)
+
+    # v2: augment with transitive successor-chain positives
+    if args.variant == "v2_full":
+        trans_path = os.path.join(args.data, "transitive_positives.parquet")
+        if os.path.exists(trans_path):
+            trans = pq.read_table(trans_path,
+                                   columns=["pred_lei", "succ_lei"]).to_pandas()
+            # only keep transitive positives whose anchor and successor are
+            # both in our train-safe pool (defense against leakage)
+            train_anchors = set(pos_train["anchor_lei"])
+            test_anchors = set(pos[~is_safe]["anchor_lei"])
+            test_succs = set(pos[~is_safe]["candidate_lei"])
+            trans = trans[trans["pred_lei"].isin(train_anchors)
+                          & ~trans["succ_lei"].isin(test_anchors)
+                          & ~trans["succ_lei"].isin(test_succs)]
+            trans = trans.rename(columns={"pred_lei": "anchor_lei",
+                                          "succ_lei": "candidate_lei"})
+            trans["label"] = 1
+            trans["source"] = "transitive_chain"
+            for col in pos_train.columns:
+                if col not in trans.columns:
+                    trans[col] = None
+            trans = trans[pos_train.columns]
+            pre = len(pos_train)
+            pos_train = pd.concat([pos_train, trans], ignore_index=True)
+            print(f"  added {len(pos_train)-pre:,} transitive positives "
+                  f"(total now {len(pos_train):,})", file=sys.stderr)
+
     if args.max_train_pairs:
         pos_train = pos_train.sample(n=min(len(pos_train), args.max_train_pairs),
                                       random_state=args.seed)
         print(f"  capped to {len(pos_train):,}", file=sys.stderr)
 
     # ---- hard negatives ---------------------------------------------------
-    if args.variant in ("full", "no_state"):
-        hard = pq.read_table(
-            os.path.join(args.data, "hard_negatives.parquet"),
+    if args.variant in ("full", "no_state", "v2_full"):
+        # v2 uses hard_negatives_v2.parquet (E5-cosine mining); others use v1.
+        hn_path = (os.path.join(args.data, "hard_negatives_v2.parquet")
+                   if args.variant == "v2_full"
+                   else os.path.join(args.data, "hard_negatives.parquet"))
+        print(f"  loading hard negs from {os.path.basename(hn_path)}",
+              file=sys.stderr)
+        hard = pq.read_table(hn_path,
             columns=["pred_lei", "neg_lei", "negative_class"],
         ).to_pandas()
         # restrict to negatives for our training predecessors
@@ -131,7 +164,7 @@ def main():
         pred, succ = row["anchor_lei"], row["candidate_lei"]
         anchor_text = text_for(pred)
         pos_text = text_for(succ)
-        negs = hard_by_pred.get(pred, [])
+        negs = hard_by_pred.get(pred, []) if hard_by_pred else []
         if negs and args.variant != "no_hard":
             # pick one hard negative for this triple
             neg = negs[int(rng.integers(0, len(negs)))]
