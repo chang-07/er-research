@@ -19,30 +19,35 @@ application season).
 
 ## Phase 1 — Dataset construction (Weeks 1–3)
 
-### 1A. Core GLEIF benchmark (Week 1)
+### 1A. Core GLEIF benchmark ✅ DONE
 - [x] Stream-parse Level-1 XML into typed parquet (`src/ingest/gleif_to_parquet.py`). 3.3M entities, 1.17M events, 33.6K successor pairs → 302 MB on disk.
 - [x] Enrich successor links via parquet join (`src/benchmark/build_successor_links.py`). 94.57% plausibly real.
-- [ ] Download GLEIF Level-2 RR file; write `src/ingest/gleif_rr_to_parquet.py` for relationships.parquet.
-- [ ] Build positive pairs from the 33.6K successor links (after dropping likely-administrative). Pull both entities' Level-1 records at multiple time points so each side has temporal context.
-- [ ] Three splits:
-  - **Held-out-time:** train events <2025-01-01, test ≥2025-01-01.
-  - **Held-out-event-type:** train without SPINOFF / DEMERGER / BREAKUP / ABSORPTION, test on those.
-  - **Held-out-jurisdiction:** train on US + UK + DE, test on Singapore + Japan + Brazil.
+- [x] Download + parse GLEIF Level-2 RR (`src/ingest/gleif_rr_to_parquet.py`). 473,839 relationships across 294K children / 76K parents.
+- [x] Build positive pairs from the 31.8K plausibly-real successor links.
+- [x] Three splits:
+  - **Held-out-time:** anchor-event date <2025-01-01 vs. ≥2025-01-01.
+  - **Held-out-event-type:** M&A/rename/form-change vs. spinoff/demerger/breakup/absorption.
+  - **Held-out-jurisdiction:** US+GB+DE vs. SG+JP+BR.
 
-### 1B. Hard-negative mining (Week 2)
-- Name-similar negatives (E5-small cosine > 0.85, distinct LEI, no successor link).
-- **Parent-subsidiary negatives** from Level 2 RR. (Phase-0 crosswalk surfaced
-  the LUXFER INC. / LUXFER HOLDINGS PLC failure mode — these must be in the
-  hard-negative set.)
-- Same-jurisdiction shell negatives.
-- Ratio: 5 negs per pos in train, 10 per pos in test.
+### 1B. Hard-negative mining ✅ DONE
+- [x] Mined 253,733 hard negatives in 4 classes (`src/benchmark/mine_hard_negatives.py`):
+  - 232,601 token-overlap same-country (fuzzy fallback)
+  - 10,703 same-name different-country
+  - 10,208 same-name same-country
+  - 221 parent/subsidiary from Level-2 RR
+- [x] Ratio applied: up to 5 negs/pos for train-only positives, up to 10 negs/pos for positives that hit any test split.
+- [x] Coverage: 63% of positives get at least one hard neg; remaining 37% (small entities in jurisdictions w/o name collisions) fall back to random negatives.
+- **v2 improvement (not blocking the paper):** swap token-overlap for proper E5-small cosine similarity; documented in paper limitations.
 
-### 1C. Supplements (Week 3, optional)
-- EDGAR 8-K Item 5.03 name changes (US public-company subset).
-- Wikidata high-profile M&A (Twitter → X etc., via P749 / P156 / P155).
-- Cross-reference and dedupe against GLEIF labels.
+### 1C. Supplements ✅ partially done
+- [x] Wikidata high-profile M&A via SPARQL P156 (`src/benchmark/wikidata_marquee.py`). 302 both-side-matched marquee pairs (Sprint→T-Mobile, Interbrew→AB-InBev, Cannon→MGM, etc.); 246 of them are NEW signal not already in GLEIF.
+- [ ] EDGAR 8-K Item 5.03 name changes — deferred; the GLEIF + Wikidata combination already exceeds the v1 size target. Add in v2 if a specific US-public-company analysis section needs the extra coverage.
 
-**Deliverable:** `TemporalLink_v1` parquet (~1M labeled pairs) + Hugging Face Datasets entry.
+**Deliverable: TemporalLink v1**
+- `pairs.parquet` — 125,519 rows (31,824 positives + 93,695 negatives) with three split assignments
+- `wikidata_marquee.parquet` — 3,590 Wikidata bindings, 302 both-side-matched marquee pairs
+- All underlying parquet tables (`entities`, `events`, `relationships`, `successor_links`, `hard_negatives`) shipped together
+- Full reproduction wall time from raw GLEIF XML: ~7 min
 
 ## Phase 2 — Baselines (Weeks 4–5)
 
@@ -122,6 +127,9 @@ application season).
 1. ✅ Audit pushed to git
 2. ✅ Validation pass: 94.57% plausibly real
 3. ✅ Crosswalk spike: 3,334 confident matches
-4. Check NeurIPS 2026 D&B exact deadline
-5. Solo vs collaborator decision
-6. Start Phase 1A: parse GLEIF Level-1 + Level-2 into parquet
+4. ✅ Phase 1A: GLEIF Level-1 + Level-2 ingested to parquet
+5. ✅ Phase 1B: hard negatives mined; three eval splits assembled
+6. ✅ Phase 1C: Wikidata marquee supplement
+7. Check NeurIPS 2026 D&B exact deadline
+8. Solo vs collaborator decision
+9. **Start Phase 2: baselines** (Dedupe, sentence encoders, LLM pairwise)

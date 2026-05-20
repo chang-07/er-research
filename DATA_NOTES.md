@@ -255,3 +255,156 @@ validation_documents, affected_field_xpaths, affected_field_values`
 `pred_lei, succ_lei, pred_name, succ_name, pred_country, succ_country,
 pred_form, succ_form, pred_status, succ_status, has_real_event,
 n_real_events, classification`
+
+---
+
+# Phase 1A.2 + 1B + 1C: rest of Phase 1 (2026-05-19)
+
+## Level-2 RR ingestion (1A continued)
+
+Downloaded the latest Level-2 RR golden-copy XML (892 MB decompressed) and
+parsed it via `src/ingest/gleif_rr_to_parquet.py`.
+
+| Quantity | Value |
+|---|---:|
+| Relationship records | 473,839 |
+| ACTIVE relationships | 473,419 (99.9%) |
+| Unique children (start_lei) | 294,548 |
+| Unique parents (end_lei) | 75,864 |
+| Output `relationships.parquet` | 10.1 MB |
+| Runtime | 10.4 s (46K rec/s) |
+
+Relationship-type mix:
+
+| Type | Count |
+|---|---:|
+| IS_FUND-MANAGED_BY | 145,666 |
+| IS_ULTIMATELY_CONSOLIDATED_BY | 129,772 |
+| IS_DIRECTLY_CONSOLIDATED_BY | 123,967 |
+| IS_SUBFUND_OF | 71,195 |
+| IS_INTERNATIONAL_BRANCH_OF | 1,904 |
+| IS_FEEDER_TO | 1,335 |
+
+## Hard-negative mining (1B)
+
+`src/benchmark/mine_hard_negatives.py` mines four classes of hard negatives
+per real positive:
+
+| Class | Description | Count (deduped) |
+|---|---|---:|
+| token_overlap_same_country | ≥2 shared content tokens, same country, fuzzy fallback | 232,601 |
+| same_name_diff_country | Identical normalized name in different country | 10,703 |
+| same_name_same_country | Identical normalized name in same country | 10,208 |
+| parent_subsidiary | Parent/subsidiary edge from Level-2 RR | 221 |
+| **Total** | | **253,733** |
+
+Coverage: ~20,138 out of 31,817 positive predecessors (~63%) get at least one
+hard neg. The remaining ~37% are small entities in jurisdictions without
+name collisions — they fall back to random negatives during training.
+
+Two findings of methodological interest:
+
+1. The `parent_subsidiary` class is small (221) because predecessors of M&A
+   events typically lose their active parent/subsidiary relationships at the
+   time of acquisition. RR captures *current* corporate hierarchy, not the
+   pre-event one.
+2. The fuzzy fallback (`token_overlap_same_country`) dominates volume but
+   has the lowest precision. The token-set heuristic should be replaced
+   with proper sentence-encoder cosine in a v2 — this is the highest-value
+   single improvement to the negative set.
+
+Output: `data/hard_negatives.parquet` (3.8 MB).
+
+## Splits and pair assembly (1B continued)
+
+`src/benchmark/build_splits.py` joins positives with their anchor event,
+assigns each pair to three split regimes, and emits pair rows.
+
+Split policy:
+
+| Split | Train | Test | Notes |
+|---|---|---|---|
+| `split_time` | anchor event date < 2025-01-01 | ≥ 2025-01-01 | excl = no datable event |
+| `split_event` | MERGERS_AND_ACQUISITIONS / CHANGE_LEGAL_NAME / CHANGE_LEGAL_FORM | SPINOFF / DEMERGER / BREAKUP / ABSORPTION | excl = no qualifying event |
+| `split_jurisdiction` | predecessor country in {US, GB, DE} | {SG, JP, BR} | excl = other countries |
+
+Each positive gets up to 5 hard negatives if its splits are all `train`,
+or up to 10 if any split places it in `test`. Anchor is the predecessor;
+candidate is the successor (label=1) or a mined negative (label=0).
+
+Resulting `pairs.parquet`:
+
+| Quantity | Value |
+|---|---:|
+| Positives (label=1) | 31,824 |
+| Negatives (label=0) | 93,695 |
+| Total pair rows | 125,519 |
+| Size on disk | 2.8 MB |
+
+Split coverage (positives + negatives, per split assignment):
+
+| | train | test | excl |
+|---|---:|---:|---:|
+| `split_time` | 89,676 | 18,080 | 17,763 |
+| `split_event` | 93,408 | 14,471 | 17,640 |
+| `split_jurisdiction` | 30,096 | 726 | 94,697 |
+
+Note: the jurisdiction test split is small (~726 rows). GLEIF's
+single-jurisdiction coverage is sparse in SG / JP / BR vs US / GB / DE; this
+mirrors a real-world generalization challenge but reviewers will reasonably
+ask for either (a) more jurisdictions in test or (b) a different
+held-out-jurisdiction definition. Document this in the paper limitations.
+
+## Wikidata marquee supplement (1C)
+
+`src/benchmark/wikidata_marquee.py` queries Wikidata SPARQL for company
+successor pairs (P156) restricted to instances of business / organization,
+then matches both sides to GLEIF entities by normalized name.
+
+| Quantity | Value |
+|---|---:|
+| SPARQL bindings | 4,240 |
+| Unique labeled pred → succ pairs | 3,590 |
+| Both sides matched to GLEIF | 302 |
+| Predecessor only matched | 230 |
+| Successor only matched | 838 |
+| Neither matched | 2,220 |
+
+After dropping 37 self-loops (Wikidata's predecessor and successor resolve
+to the same GLEIF LEI — typically administrative renames), **265 useful
+marquee pairs** remain. Of those:
+
+- **19 already in `successor_links.parquet`** — sanity check that the
+  multi-source labeling is consistent.
+- **246 are net-new** signal that GLEIF's `SuccessorEntity` field doesn't
+  capture.
+
+Notable matched pairs include Sprint Corporation → T-Mobile US, Chemical
+Financial Corporation → TCF Financial, Cannon Group → MGM, Interbrew →
+Anheuser-Busch InBev, Meredith → Gray Media, AT&T Corporation → AT&T,
+Salzgitter Mannesmann → Mannesmann.
+
+This is excellent evidence for the multi-source approach: GLEIF gives broad
+machine-readable coverage; Wikidata adds hand-curated depth on famous cases.
+Output: `data/wikidata_marquee.parquet` (0.2 MB) — kept as a separate
+marquee test slice; can be merged into `pairs.parquet` as positives or held
+as a qualitative eval set.
+
+## TemporalLink v1 — final artifact summary
+
+The complete v1 dataset deliverables sitting under `data/` (gitignored):
+
+| File | Rows | Size |
+|---|---:|---:|
+| `entities.parquet` | 3,313,039 | 275.5 MB |
+| `events.parquet` | 1,170,716 | 22.7 MB |
+| `relationships.parquet` | 473,839 | 10.1 MB |
+| `successor_links_raw.parquet` | 33,645 | 1.1 MB |
+| `successor_links.parquet` (enriched) | 33,652 | 2.6 MB |
+| `hard_negatives.parquet` | 253,733 | 3.8 MB |
+| `pairs.parquet` (the v1 dataset) | 125,519 | 2.8 MB |
+| `wikidata_marquee.parquet` (supplement) | 3,590 | 0.2 MB |
+
+End-to-end reproducible from the GLEIF XML + a SPARQL endpoint, no
+proprietary access required. Total wall time from raw XML to v1 dataset:
+~7 minutes.

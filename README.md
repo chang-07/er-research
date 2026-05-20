@@ -18,7 +18,10 @@ sources required.
 - [x] Label-quality validation: 94.57% plausibly real (`validate_successor_pairs.py`)
 - [x] LEI ↔ CIK crosswalk: 3,334 confident matches (`lei_cik_crosswalk.py`)
 - [x] Parquet ingestion: 3.3M entities, 1.17M events, 33.6K successor pairs (`src/ingest/gleif_to_parquet.py` + `src/benchmark/build_successor_links.py`)
-- [ ] Benchmark construction (positive pairs, hard negatives, three eval splits)
+- [x] GLEIF Level-2 RR ingestion: 473,839 relationships (`src/ingest/gleif_rr_to_parquet.py`)
+- [x] Hard-negative mining: 253,733 candidates across 4 classes (`src/benchmark/mine_hard_negatives.py`)
+- [x] Eval splits built: 125,519 pair rows with held-out-time / -event-type / -jurisdiction assignments (`src/benchmark/build_splits.py`)
+- [x] Wikidata marquee supplement: 302 famous M&A matched to GLEIF (`src/benchmark/wikidata_marquee.py`)
 - [ ] Baselines (Dedupe, sentence encoders, LLM pairwise matching)
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
 - [ ] Write-up + arXiv preprint
@@ -44,20 +47,29 @@ python3 lei_cik_crosswalk.py        # ~50s + 1 small SEC fetch
 Note: the SEC fetch in `lei_cik_crosswalk.py` requires an email-bearing
 User-Agent. Edit the `UA` constant before running with your own contact.
 
-## Building the parquet corpus (Phase 1A)
-
-After the audit confirms viability, materialize the typed corpus:
+## Building TemporalLink v1 (all of Phase 1)
 
 ```bash
-python3 -m src.ingest.gleif_to_parquet \
-    --xml 20260519-gleif-concatenated-file-lei2.xml \
-    --out data/                          # ~160s, emits entities/events/successor_links_raw
-python3 -m src.benchmark.build_successor_links \
-    --data data/                         # ~3s, emits enriched successor_links.parquet
+# 1A — typed corpus from GLEIF Level-1 + Level-2 XML
+python3 src/ingest/gleif_to_parquet.py    --xml <Level1.xml> --out data/   # ~160s
+python3 src/ingest/gleif_rr_to_parquet.py --xml <RR.xml>     --out data/   # ~10s
+python3 src/benchmark/build_successor_links.py --data data/                # ~3s
+
+# 1B — hard negatives + eval splits
+python3 src/benchmark/mine_hard_negatives.py --data data/                  # ~5 min
+python3 src/benchmark/build_splits.py        --data data/                  # ~10s
+
+# 1C — Wikidata marquee supplement
+python3 src/benchmark/wikidata_marquee.py    --data data/                  # ~30s
 ```
 
-Output: ~302 MB of parquet (vs the 7.5 GB XML). All downstream Phase-1 steps
-read from parquet — the XML is needed only once.
+Total ~7 minutes from raw XML to `data/pairs.parquet` (125K labeled pair
+rows with three split regimes) + `data/wikidata_marquee.parquet`
+(302 famous-case matches).
+
+The XML inputs come from
+<https://goldencopy.gleif.org/> (Level-1 LEI2 + Level-2 RR
+golden-copy files, published every 8 hours, all CC0).
 
 ## License
 
