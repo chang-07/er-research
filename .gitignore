@@ -1,0 +1,43 @@
+# Data — never commit. Levels 1+2 GLEIF dumps, EDGAR snapshots, Wikidata exports.
+data/
+*.xml
+*.xml.gz
+*.parquet
+*.csv
+*.json.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+.python-version
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Experiment artifacts
+wandb/
+mlruns/
+checkpoints/
+*.ckpt
+*.pt
+*.bin
+*.safetensors
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+.claude/
+*.swp
+
+# Local scratch
+scratch/
+tmp/
