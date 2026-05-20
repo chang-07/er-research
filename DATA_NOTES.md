@@ -190,3 +190,68 @@ influence Phase-1 hard-negative mining):
 - In Phase 1C (EDGAR supplement), the 3,334 confident LEI↔CIK matches are
   enough to bootstrap 8-K Item 5.03 enrichment for the US public-company
   slice. Add OpenFIGI fallback later if we need to widen coverage.
+
+---
+
+# Phase 1A: parquet ingestion (2026-05-19)
+
+`src/ingest/gleif_to_parquet.py` performs a single streaming pass over the
+GLEIF Level-1 XML and emits three parquet tables.
+`src/benchmark/build_successor_links.py` then joins them to produce the
+enriched + classified successor-link table.
+
+## Outputs
+
+| File | Rows | Size (snappy) |
+|---|---:|---:|
+| `data/entities.parquet` | 3,313,039 | 275.5 MB |
+| `data/events.parquet` | 1,170,716 | 22.7 MB |
+| `data/successor_links_raw.parquet` | 33,645 | 1.1 MB |
+| `data/successor_links.parquet` (enriched) | 33,652 | 2.6 MB |
+
+Total: ~302 MB on disk for the full Level-1 corpus, a ~27× compression vs.
+the 7.5 GB source XML. All downstream code reads from parquet; no further
+need to touch the XML.
+
+The 7-row difference between raw (33,645) and enriched (33,652) successor
+tables is from the entities-side merge: a small number of predecessor LEIs
+have successor LEIs that appear more than once in the entities table
+(GLEIF historical re-issuances). Trivial; will be deduped in Phase 1B.
+
+## Runtime
+
+- Ingestion: 157.8 s wall (21K records/s steady-state) on M-series MacBook.
+- Successor enrichment: ~3 s including parquet I/O.
+- Pure-Python with `lxml.iterparse` streaming; constant memory.
+
+## Cross-table sanity checks
+
+| Query | Value | Cross-reference |
+|---|---:|---|
+| Total entities | 3,313,039 | Matches GLEIF XML header `RecordCount` |
+| ACTIVE entities | 3,064,538 (92.5%) | Sensible |
+| US-jurisdiction entities | 351,018 | Matches Phase 0 crosswalk |
+| All MERGERS_AND_ACQUISITIONS events | 42,915 | Matches audit |
+| COMPLETED M&A events | 41,708 | Matches audit |
+| COMPLETED M&A in 2023 | 4,143 | Plausible |
+| US → non-US successor migrations | 28 | Small but non-zero (cross-border reorgs) |
+
+## Schemas (high level)
+
+`entities.parquet`:
+`lei, legal_name, other_names[], legal_form_code, legal_jurisdiction,
+category, sub_category, entity_status, entity_creation_date,
+entity_expiration_date, entity_expiration_reason,
+legal_addr_{country,city,region,postal_code}, hq_addr_{country,city,region,postal_code},
+associated_entity_lei, initial_registration_date, last_update_date,
+next_renewal_date, registration_status, validation_sources, managing_lou,
+has_successor, successor_lei`
+
+`events.parquet`:
+`lei, event_type, event_status, group_type, effective_date, recorded_date,
+validation_documents, affected_field_xpaths, affected_field_values`
+
+`successor_links.parquet`:
+`pred_lei, succ_lei, pred_name, succ_name, pred_country, succ_country,
+pred_form, succ_form, pred_status, succ_status, has_real_event,
+n_real_events, classification`

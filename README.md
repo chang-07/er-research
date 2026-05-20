@@ -17,6 +17,7 @@ sources required.
 - [x] Data-availability audit on the GLEIF Level-1 LEI-CDF dump (`gleif_audit.py`)
 - [x] Label-quality validation: 94.57% plausibly real (`validate_successor_pairs.py`)
 - [x] LEI ↔ CIK crosswalk: 3,334 confident matches (`lei_cik_crosswalk.py`)
+- [x] Parquet ingestion: 3.3M entities, 1.17M events, 33.6K successor pairs (`src/ingest/gleif_to_parquet.py` + `src/benchmark/build_successor_links.py`)
 - [ ] Benchmark construction (positive pairs, hard negatives, three eval splits)
 - [ ] Baselines (Dedupe, sentence encoders, LLM pairwise matching)
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
@@ -35,13 +36,28 @@ and place it at the project root. Then:
 
 ```bash
 pip install -r requirements.txt
-python3 gleif_audit.py             # ~50s — viability audit
+python3 gleif_audit.py              # ~50s — viability audit
 python3 validate_successor_pairs.py # ~90s — label-quality check on successor pairs
 python3 lei_cik_crosswalk.py        # ~50s + 1 small SEC fetch
 ```
 
 Note: the SEC fetch in `lei_cik_crosswalk.py` requires an email-bearing
 User-Agent. Edit the `UA` constant before running with your own contact.
+
+## Building the parquet corpus (Phase 1A)
+
+After the audit confirms viability, materialize the typed corpus:
+
+```bash
+python3 -m src.ingest.gleif_to_parquet \
+    --xml 20260519-gleif-concatenated-file-lei2.xml \
+    --out data/                          # ~160s, emits entities/events/successor_links_raw
+python3 -m src.benchmark.build_successor_links \
+    --data data/                         # ~3s, emits enriched successor_links.parquet
+```
+
+Output: ~302 MB of parquet (vs the 7.5 GB XML). All downstream Phase-1 steps
+read from parquet — the XML is needed only once.
 
 ## License
 

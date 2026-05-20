@@ -20,9 +20,11 @@ application season).
 ## Phase 1 — Dataset construction (Weeks 1–3)
 
 ### 1A. Core GLEIF benchmark (Week 1)
-- Re-run audit emitting parquet: `entities.parquet`, `events.parquet`, `successor_links.parquet`, `relationships.parquet` (Level 2 RR).
-- Build positive pairs from the 50K `SuccessorEntity` links. Pull both entities' Level-1 records at multiple time points so each side has temporal context.
-- Three splits:
+- [x] Stream-parse Level-1 XML into typed parquet (`src/ingest/gleif_to_parquet.py`). 3.3M entities, 1.17M events, 33.6K successor pairs → 302 MB on disk.
+- [x] Enrich successor links via parquet join (`src/benchmark/build_successor_links.py`). 94.57% plausibly real.
+- [ ] Download GLEIF Level-2 RR file; write `src/ingest/gleif_rr_to_parquet.py` for relationships.parquet.
+- [ ] Build positive pairs from the 33.6K successor links (after dropping likely-administrative). Pull both entities' Level-1 records at multiple time points so each side has temporal context.
+- [ ] Three splits:
   - **Held-out-time:** train events <2025-01-01, test ≥2025-01-01.
   - **Held-out-event-type:** train without SPINOFF / DEMERGER / BREAKUP / ABSORPTION, test on those.
   - **Held-out-jurisdiction:** train on US + UK + DE, test on Singapore + Japan + Brazil.
