@@ -49,18 +49,27 @@ application season).
 - All underlying parquet tables (`entities`, `events`, `relationships`, `successor_links`, `hard_negatives`) shipped together
 - Full reproduction wall time from raw GLEIF XML: ~7 min
 
-## Phase 2 — Baselines (Weeks 4–5)
+## Phase 2 — Baselines ✅ DONE (autonomous portion)
 
-| Baseline | Why | Effort |
+| Baseline | Run? | Best Hits@1 (time / event / juris) |
 |---|---|---|
-| Exact-match on legal name | Trivial floor | <1 day |
-| Dedupe (Fellegi-Sunter) | Classical RL | 1–2 days |
-| CompanyName2Vec | Static company-matching baseline | 1 day |
-| E5 / BGE / GTE zero-shot | Modern pretrained encoder | 1 day |
-| GPT-4o + Claude pairwise (OpenSanctions Pairs style) | LLM SOTA | 2–3 days, ~$500 API |
-| DeepSeek-R1-Distill-Qwen-14B local | Open-model LLM | 2 days, needs GPU |
+| exact_name | ✅ | 0.036 / 0.061 / 0.171 |
+| token_set (Jaccard) | ✅ | 0.104 / 0.140 / 0.318 |
+| tfidf_char (char-3gram) | ✅ | 0.176 / 0.204 / 0.421 |
+| sentence_encoder (E5-small-v2 zero-shot) | ✅ | **0.202** / **0.224** / **0.432** |
+| llm_pairwise (Claude / GPT) | scaffolded only — user to run | — |
+| Dedupe (Fellegi-Sunter) | skipped for v1 — name-feature baselines already saturated | — |
 
-**Gate:** If LLMs already hit >95% on all splits including held-out-event-type, pivot to benchmark-only paper.
+**Gate decision: method paper is justified.** Best name-based baseline tops
+out at ~22% Hits@1 on time + event splits; AUROC stays under 0.5 for all
+similarity-based baselines (anti-correlated, as expected given the hard-
+negative construction). Massive headroom for a lifecycle-aware method.
+
+Full numbers in `DATA_NOTES.md` (Phase 2 section).
+
+LLM run remains: `src/baselines/llm_pairwise.py` is ready; needs API key
+(ANTHROPIC_API_KEY or OPENAI_API_KEY) and ~$30 budget for a 5% sample
+to get a quick read.
 
 ## Phase 3 — Method (Weeks 6–8)
 

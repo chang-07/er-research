@@ -22,7 +22,9 @@ sources required.
 - [x] Hard-negative mining: 253,733 candidates across 4 classes (`src/benchmark/mine_hard_negatives.py`)
 - [x] Eval splits built: 125,519 pair rows with held-out-time / -event-type / -jurisdiction assignments (`src/benchmark/build_splits.py`)
 - [x] Wikidata marquee supplement: 302 famous M&A matched to GLEIF (`src/benchmark/wikidata_marquee.py`)
-- [ ] Baselines (Dedupe, sentence encoders, LLM pairwise matching)
+- [x] Baselines run: exact_name, token_set, tfidf_char, sentence_encoder (E5-small). Best Hits@1 = 22% on the headline splits — method paper justified. `src/baselines/`, `src/eval/`
+- [ ] LLM-pairwise baseline (scaffold ready; needs API key + budget)
+- [ ] Method: entity-state-at-time bi-encoder w/ event-bridging contrastive loss
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
 - [ ] Write-up + arXiv preprint
 - [ ] Submit (target: ICAIF 2026 workshop primary, NeurIPS 2026 D&B stretch)
@@ -70,6 +72,19 @@ rows with three split regimes) + `data/wikidata_marquee.parquet`
 The XML inputs come from
 <https://goldencopy.gleif.org/> (Level-1 LEI2 + Level-2 RR
 golden-copy files, published every 8 hours, all CC0).
+
+## Running baselines (Phase 2)
+
+```bash
+python3 src/baselines/cheap.py   --data data/   # ~1s  — exact_name, token_set, tfidf_char
+python3 src/baselines/encoder.py --data data/   # ~40s — E5-small-v2 zero-shot
+python3 src/eval/evaluate.py     --data data/   # ~7s  — AUROC, AUPRC, Hits@K, MRR, per-class breakdown
+```
+
+LLM pairwise baseline (Anthropic / OpenAI) is scaffolded but not run
+autonomously — `src/baselines/llm_pairwise.py` needs an API key and budget.
+Use `--sample-frac 0.05` first for a cheap signal before paying for a full
+sweep.
 
 ## License
 

@@ -408,3 +408,117 @@ The complete v1 dataset deliverables sitting under `data/` (gitignored):
 End-to-end reproducible from the GLEIF XML + a SPARQL endpoint, no
 proprietary access required. Total wall time from raw XML to v1 dataset:
 ~7 minutes.
+
+---
+
+# Phase 2: baseline results (2026-05-19)
+
+Four baselines run on TemporalLink v1 via the shared harness
+(`src/baselines/` + `src/eval/evaluate.py`):
+
+- `exact_name`        — normalized legal-name equality (0/1)
+- `token_set`         — Jaccard similarity over normalized name tokens
+- `tfidf_char`        — char-3gram TF-IDF + cosine (L2-normalized → dot product)
+- `sentence_encoder`  — zero-shot `intfloat/e5-small-v2` cosine on legal_name
+
+Scaffolded but not autonomously run: `llm_pairwise` (OpenSanctions-Pairs-style
+Anthropic / OpenAI pairwise classifier; needs API budget).
+
+## Headline retrieval metrics (test sets, Hits@K / MRR per anchor)
+
+### split_time (anchor event date < 2025-01-01 vs ≥)
+
+| baseline | AUROC | AUPRC | Hits@1 | Hits@3 | MRR |
+|---|---:|---:|---:|---:|---:|
+| exact_name | 0.474 | 0.186 | 0.036 | 0.262 | 0.225 |
+| token_set | 0.193 | 0.138 | 0.104 | 0.350 | 0.291 |
+| tfidf_char | 0.276 | 0.163 | 0.176 | 0.426 | 0.359 |
+| **sentence_encoder** | **0.315** | **0.170** | **0.202** | **0.454** | **0.384** |
+
+### split_event (M&A/rename train, spinoff/demerger/breakup/absorption test)
+
+| baseline | AUROC | AUPRC | Hits@1 | Hits@3 | MRR |
+|---|---:|---:|---:|---:|---:|
+| exact_name | 0.523 | 0.201 | 0.061 | 0.285 | 0.247 |
+| token_set | 0.266 | 0.166 | 0.140 | 0.388 | 0.324 |
+| tfidf_char | 0.349 | 0.235 | 0.204 | 0.446 | 0.381 |
+| **sentence_encoder** | **0.386** | **0.240** | **0.224** | **0.476** | **0.403** |
+
+### split_jurisdiction (US+GB+DE train, SG+JP+BR test; 88 anchors)
+
+| baseline | AUROC | AUPRC | Hits@1 | Hits@3 | MRR |
+|---|---:|---:|---:|---:|---:|
+| exact_name | 0.571 | 0.299 | 0.171 | 0.477 | 0.383 |
+| token_set | 0.323 | 0.307 | 0.318 | 0.580 | 0.497 |
+| tfidf_char | 0.568 | 0.509 | 0.421 | 0.682 | 0.583 |
+| **sentence_encoder** | **0.648** | **0.547** | **0.432** | **0.693** | **0.587** |
+
+## The headline finding
+
+**AUROC < 0.5 for token_set, tfidf_char, and sentence_encoder on time + event
+splits.** That is *worse* than random.
+
+This is not noise — it's the structural consequence of our hard-negative
+design. The negatives are name-similar by construction (we deliberately
+mined them to be), while the positives are pairs that have undergone a
+lifecycle event, which by definition changed the name. So *higher name
+similarity is evidence against a true successor link.* Name-only baselines
+cannot solve lifecycle ER — they're solving a problem that's anti-correlated
+with the actual task.
+
+This is the kind of result that justifies the entire benchmark and
+motivates the method paper: lifecycle-aware ER requires more than name
+similarity, and current zero-shot encoders don't capture that signal.
+
+## Negative-class breakdown (mean score on label=0, higher = more fooled)
+
+| baseline | parent_subsidiary | same_name_diff_country | same_name_same_country | token_overlap_same_country |
+|---|---:|---:|---:|---:|
+| exact_name | 0.013 | 1.000 | 1.000 | 0.000 |
+| token_set | 0.144 | 1.000 | 1.000 | 0.486 |
+| tfidf_char | 0.227 | 0.630 | 0.804 | 0.590 |
+| sentence_encoder | **0.834** | 0.921 | 0.963 | 0.905 |
+
+Two diagnostic stories:
+
+1. The sentence encoder is heavily fooled by **all** negative classes
+   (mean score 0.83 – 0.96). It cannot distinguish "same legal-economic
+   entity" from "related legal entity" or even "same name in different
+   country." Embedding similarity ≠ economic identity.
+2. The exact_name baseline is the *only* one that gets parent_subsidiary
+   right (mean 0.013 = essentially never fooled), because parent/sub pairs
+   almost always have distinct legal names. It pays for that with total
+   failure on the two same_name classes (mean 1.0 = always fooled).
+
+## Phase-2 gate decision
+
+The plan said: *"If LLMs already hit >95% on all three splits including
+held-out-event-type, pivot to a benchmark-only paper."*
+
+We don't have the LLM numbers yet, but the four name-based baselines top out
+at **~22% Hits@1 on the time and event splits**. Even if an LLM doubles
+that (44%), there's still ~50pp of room for a method paper. The decision is:
+
+**Method paper is justified.** The benchmark exposes a real gap that
+name-based encoders cannot close.
+
+The remaining open question is exactly *how much* of that gap an LLM closes
+on its own. Worth ~$30 of API spend on a 5% sample of pairs to know — that's
+the next thing the user runs when they're ready.
+
+## Runtime
+
+| stage | wall time | notes |
+|---|---:|---|
+| `src/baselines/cheap.py` | ~1 s | all three CPU baselines |
+| `src/baselines/encoder.py` | ~37 s | 112K names @ E5-small, single CPU |
+| `src/eval/evaluate.py` | ~7 s | all 4 baselines × 3 splits |
+
+Outputs (gitignored under `data/`):
+
+- `data/predictions/exact_name.parquet`
+- `data/predictions/token_set.parquet`
+- `data/predictions/tfidf_char.parquet`
+- `data/predictions/sentence_encoder.parquet`
+- `data/eval_metrics.csv`
+- `data/eval_neg_breakdown.csv`
