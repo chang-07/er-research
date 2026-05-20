@@ -94,25 +94,18 @@ State features ablation contributes ~1.5–2 pp Hits@1 — small but real.
 
 Full results table in `DATA_NOTES.md` (Phase 3 section).
 
-## Phase 4 — Eval, writing (Weeks 9–11)
+## Phase 4 — Eval, writing ✅ DONE (v1 draft)
 
-### Week 9
-- Full results × baselines × method × splits.
-- Per-event-type breakdown.
-- Calibration plots.
-- Error analysis: 100 sampled failures, categorized.
+- [x] Extended eval: per-event-type Hits@1, error analysis on 100 method failures, event-year histogram (`src/eval/extended.py`).
+- [x] Figures: event-year stacked bar, main results bar chart, per-event-type breakdown (`src/eval/figures.py` → `paper/figures/*.pdf`).
+- [x] Paper draft: `paper/draft.tex` + `paper/refs.bib`. ~9 pages: abstract through conclusion. Article-class placeholder; swap to venue style at submission.
+- [x] Datasheet: `paper/datasheet.md` (Gebru et al. template). Required appendix for NeurIPS D&B and ACL data tracks.
+- [x] `paper/README.md` with compile + submission checklist.
+- [ ] HF Datasets release (still v1.1 work — needs HF account + dataset card).
+- [ ] Read-through + 1-2 peer reviewers (your call).
 
-### Week 10 — Draft
-- NeurIPS D&B template, 8–9 pages.
-- Sections: Abstract → Intro → Related → Dataset → Method → Experiments → Analysis → Limitations → Conclusion.
-- 4 figures, 1 main results table.
-- "Why this matters" paragraph: explicit Stripe / Ramp / Bloomberg / Robinhood callouts.
-
-### Week 11 — Polish
-- [Datasheet for datasets](https://arxiv.org/abs/1803.09010) (required for D&B track).
-- HF Datasets release.
-- GitHub README polish.
-- Read-through + 1–2 peer reviewers.
+Phase 4 v1 is complete. The remaining items (HF release, peer review) are
+about submission logistics rather than research content.
 
 ## Phase 5 — Submit + outreach (Week 12)
 

@@ -25,6 +25,8 @@ sources required.
 - [x] Baselines run: exact_name, token_set, tfidf_char, sentence_encoder (E5-small). Best Hits@1 = 22% on the headline splits — method paper justified. `src/baselines/`, `src/eval/`
 - [ ] LLM-pairwise baseline (scaffold ready; needs API key + budget)
 - [x] Method (v1): lifecycle-aware bi-encoder fine-tuned on E5-small with state features + hard negatives. **+5–8 pp Hits@1 over zero-shot E5 across all splits.** Two ablations run. `src/method/train.py`
+- [x] Paper draft + datasheet + figures (Phase 4): `paper/draft.tex`, `paper/datasheet.md`, `paper/figures/*.pdf`. ~9 pages, Gebru-template datasheet appendix.
+- [ ] HF Datasets release (manual upload after paper submission).
 - [ ] Method v2: cleaner hard-neg mining (E5 cosine instead of token overlap); successor-chain transitive positives; possibly bigger backbone (E5-large / BGE-large) with GPU.
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
 - [ ] Write-up + arXiv preprint
@@ -101,6 +103,14 @@ Each variant trains for 3 epochs at batch 32, learning rate 2e-5, and writes
 `data/models/method_<variant>/`. The default training set is the
 26K positives that fall in `train` for *all three* split regimes — strict no-
 leakage. Default device is Apple MPS if available, else CUDA, else CPU.
+
+## Paper draft
+
+`paper/draft.tex` is a ~9-page LaTeX draft of the TemporalLink paper, with
+the full experimental story, three figures, and a Gebru-style datasheet
+(`paper/datasheet.md`) as appendix. The draft uses the standard `article`
+class — swap to the venue style file at submission time. See
+`paper/README.md` for compile instructions.
 
 ## License
 
