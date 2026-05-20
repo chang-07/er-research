@@ -71,26 +71,28 @@ LLM run remains: `src/baselines/llm_pairwise.py` is ready; needs API key
 (ANTHROPIC_API_KEY or OPENAI_API_KEY) and ~$30 budget for a 5% sample
 to get a quick read.
 
-## Phase 3 — Method (Weeks 6–8)
+## Phase 3 — Method ✅ DONE (v1)
 
-### Architecture
-- Dual bi-encoder initialized from BGE-large or E5-large-v2.
-- Input: `(record_text, jurisdiction, time_state_features)`.
-- Time-state features (16-dim projection, no future leakage): listed exchange, HQ country, legal form code, last-known address city, had-lifecycle-event-in-past-365-days flag at time t.
+Trained an E5-small-v2 lifecycle-aware bi-encoder via supervised contrastive
+learning on the 26K event-bridging positives (intersection of all three
+splits' train sets) plus Phase-1B hard negatives.
 
-### Training
-- InfoNCE with three positive types: identity, event-bridging, successor-chain.
-- Hard negatives from Phase 1B.
-- Batch 256, ~3 epochs, single GPU.
+| Variant | Hits@1 time / event / juris | Δ vs zero-shot E5 |
+|---|:-:|:-:|
+| sentence_encoder (zero-shot E5-small-v2) | 0.202 / 0.224 / 0.432 | baseline |
+| **method_full** (name + jurisdiction + form + hard negs) | **0.254 / 0.287 / 0.500** | **+5.2 / +6.3 / +6.8 pp** |
+| method_no_state (name only) | 0.238 / 0.265 / 0.489 | +3.6 / +4.1 / +5.7 pp |
+| **method_no_hard** (in-batch negs only) | **0.258 / 0.295 / 0.511** | **+5.6 / +7.1 / +7.9 pp** |
 
-### Ablations
-- No state features.
-- No event-bridging positives.
-- No hard negatives.
+Surprise: `no_hard` slightly beats `full`. The `token_overlap_same_country`
+hard-neg class (Phase-1B fuzzy fallback) is noisy; clean E5-cosine-mined
+hard negs in v2 should reverse this.
 
-### Budget
-- Compute: $0 if personal GPU, ~$200–500 if rented.
-- LLM APIs for baselines: ~$500–2000.
+Training: 6 minutes per variant on Apple Silicon MPS. No GPU required for v1.
+
+State features ablation contributes ~1.5–2 pp Hits@1 — small but real.
+
+Full results table in `DATA_NOTES.md` (Phase 3 section).
 
 ## Phase 4 — Eval, writing (Weeks 9–11)
 

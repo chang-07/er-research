@@ -24,7 +24,8 @@ sources required.
 - [x] Wikidata marquee supplement: 302 famous M&A matched to GLEIF (`src/benchmark/wikidata_marquee.py`)
 - [x] Baselines run: exact_name, token_set, tfidf_char, sentence_encoder (E5-small). Best Hits@1 = 22% on the headline splits — method paper justified. `src/baselines/`, `src/eval/`
 - [ ] LLM-pairwise baseline (scaffold ready; needs API key + budget)
-- [ ] Method: entity-state-at-time bi-encoder w/ event-bridging contrastive loss
+- [x] Method (v1): lifecycle-aware bi-encoder fine-tuned on E5-small with state features + hard negatives. **+5–8 pp Hits@1 over zero-shot E5 across all splits.** Two ablations run. `src/method/train.py`
+- [ ] Method v2: cleaner hard-neg mining (E5 cosine instead of token overlap); successor-chain transitive positives; possibly bigger backbone (E5-large / BGE-large) with GPU.
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
 - [ ] Write-up + arXiv preprint
 - [ ] Submit (target: ICAIF 2026 workshop primary, NeurIPS 2026 D&B stretch)
@@ -85,6 +86,21 @@ LLM pairwise baseline (Anthropic / OpenAI) is scaffolded but not run
 autonomously — `src/baselines/llm_pairwise.py` needs an API key and budget.
 Use `--sample-frac 0.05` first for a cheap signal before paying for a full
 sweep.
+
+## Training the method (Phase 3)
+
+```bash
+python3 src/method/train.py --data data --variant full      # ~7 min on Apple MPS
+python3 src/method/train.py --data data --variant no_state  # ablation
+python3 src/method/train.py --data data --variant no_hard   # ablation
+python3 src/eval/evaluate.py --data data                    # combined eval
+```
+
+Each variant trains for 3 epochs at batch 32, learning rate 2e-5, and writes
+`data/predictions/method_<variant>.parquet` plus a saved checkpoint under
+`data/models/method_<variant>/`. The default training set is the
+26K positives that fall in `train` for *all three* split regimes — strict no-
+leakage. Default device is Apple MPS if available, else CUDA, else CPU.
 
 ## License
 

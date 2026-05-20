@@ -3,6 +3,8 @@ pyarrow>=21.0
 pandas>=2.0
 scikit-learn>=1.6
 sentence-transformers>=5.0
+datasets>=2.18
+accelerate>=0.26
 # Optional, for src/baselines/llm_pairwise.py:
 #   anthropic>=0.40
 #   openai>=2.0
