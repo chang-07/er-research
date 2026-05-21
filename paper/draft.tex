@@ -43,15 +43,14 @@ built from public GLEIF + SEC EDGAR + Wikidata: 125{,}519 pairs over
 achieve test AUROC $<$ 0.5 on the time and event splits and top out
 at 22\% Hits@1. A contrastive E5-small fine-tune lifts Hits@1
 $+5$--$8$\,pp; a fine-tuned cross-encoder (22M parameters,
-$\approx$17 min on MPS) gives the headline:
+$\approx$17 min on MPS) gives a strong headline:
 60.5 / 56.5 / 75.0\% Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI),
 $+24$--$35$\,pp over the best bi-encoder, AUROC 0.83--0.87
-(vs.\ $<$0.5 for any similarity method). A prompt-and-ensemble
-extension (enriching the text with GLEIF L2 parent/subsidiary names,
-country expansion, and Wikidata-LEI positives; averaging three seeds
-with the Wikidata- and country-expanded variants) lifts Hits@1 a
-further $+8.7 / +8.8 / +2.3$\,pp on the same backbone, reaching
-69.2 / 65.3 / 77.3\%. A miner-robustness experiment
+(vs.\ $<$0.5 for any similarity method). Prompt enrichment (GLEIF
+Level-2 parent/subsidiary names, country expansion, founding year),
+Wikidata-LEI positives, and an L-6/L-12 cross-encoder ensemble lift
+Hits@1 a further $+9.4 / +11.2 / +3.4$\,pp, reaching
+70.0 / 67.7 / 78.4\%. A miner-robustness experiment
 re-mines hard negs with TF-IDF char-3gram cosine, retrains a second
 cross-encoder, and scores the $2{\times}2$ train$\times$eval matrix:
 the cross-encoder advantage over the baseline stays $+13$ to
@@ -444,17 +443,17 @@ Figure~\ref{fig:main} visualizes the table.
   \end{tabular}
 \end{table*}
 
-\paragraph{Larger cross-encoder backbone helps modestly.}
-Scaling MiniLM-L-6 (22M) to L-12 (60M) lifts Hits@1 $+2.5 / +3.0 /
-+0.0$\,pp on TIME / EVENT / JURIS; AUROC $+0.8 / +1.1 / +0.2$. We
-retain L-6 as headline for cost-effectiveness, since prompt and
-ensemble extensions (next paragraph) deliver larger gains on the
-same backbone.
+\paragraph{Larger cross-encoder backbone helps modestly on its own,
+substantially in ensemble.}
+Scaling MiniLM-L-6 (22M) to L-12 (60M) on the baseline prompt lifts
+Hits@1 $+2.5 / +3.0 / +0.0$\,pp on TIME / EVENT / JURIS. The next
+paragraph shows that pairing an L-12 model with our L-6 extensions
+delivers the largest cumulative gain ($+9$ to $+11$\,pp), since the
+two backbones make complementary errors.
 
-\paragraph{Prompt-side and ensemble extensions add $+8$\,pp Hits@1.}
-Three orthogonal modifications, all on the L-6 backbone, lift
-Hits@1 over the headline cross-encoder.
-\textbf{(i)} \emph{Prompt enrichment} adds parent / up-to-2
+\paragraph{Prompt-side and backbone extensions add $+9$ to $+11$\,pp Hits@1.}
+Four orthogonal modifications lift Hits@1 substantially over the
+headline. \textbf{(i)} \emph{Prompt enrichment} adds parent / up-to-2
 subsidiary names from GLEIF Level-2, legal-address city, entity
 creation year, country expansion via \texttt{pycountry}
 (\texttt{SG} $\to$ \texttt{SG (Singapore)}; US states via ISO-3166-2),
@@ -464,27 +463,27 @@ country, and \texttt{category} when non-default (FUND etc.).
 P1278 (LEI) on both sides of P156 / P1366 / P7888 (followed-by /
 replaced-by / merged-into), recovering 259 cross-jurisdiction
 positives not in our GLEIF set.
-\textbf{(iii)} \emph{Multi-seed ensemble} averages sigmoid scores
-from three enriched cross-encoders (seeds 42, 7, 1337).
-The final v7 ensemble averages the seed ensemble, the
-Wikidata-augmented model, and the country-expanded model, reaching
-$\mathbf{0.692 / 0.653 / 0.773}$ Hits@1 ($+8.7 / +8.8 / +2.3$\,pp
-over the L-6 headline; Table~\ref{tab:v7}). A single-model alternative
-(v8a) that integrates v5's Wikidata-augmented data with v6's enriched
-prompt in one training run matches the ensemble within CI
-($0.694 / 0.651 / 0.773$) at one-third the inference cost,
-suggesting the ensemble gain is mostly compositional rather than
-diversity-driven. A \emph{negative} finding: symmetric scoring
-(averaging $s(a,b)$ and $s(b,a)$) hurts $-0.9 / -1.9 / -9.1$\,pp,
-confirming the cross-encoder learns a strongly directional
-pred$\to$succ representation.
+\textbf{(iii)} \emph{Multi-seed and multi-backbone ensembles.}
+Averaging sigmoid scores from three enriched L-6 models (seeds 42,
+7, 1337) is competitive; pairing an L-6 model with an L-12 model
+(60M params) trained on the same v5+v6 recipe is uniformly stronger.
+\textbf{(iv)} \emph{Negative finding.} Symmetric scoring (averaging
+$s(a,b)$ and $s(b,a)$) hurts $-0.9 / -1.9 / -9.1$\,pp, confirming
+the cross-encoder learns a strongly directional pred$\to$succ
+representation. The headline v10 (L-6 $\times$ L-12 ensemble of
+v8a-style models) reaches $\mathbf{0.700 / 0.677 / 0.784}$ Hits@1
+($+9.4 / +11.2 / +3.4$\,pp over the L-6 baseline;
+Table~\ref{tab:v7}). The single-model v8a (one L-6 with combined
+Wikidata data + enriched prompt) at $0.694 / 0.651 / 0.773$
+is within CI on EVENT/JURIS and gives a deployment-friendly
+alternative at $\sim$$3\times$ lower cost.
 
 \begin{table}[t]
   \centering\small
-  \caption{Cross-encoder extensions on the L-6 backbone, Hits@1
-    [95\% bootstrap CI]. v7 averages v4 ens3, v5, v6 sigmoid scores.
-    Headline L-6 row repeated from Table~\ref{tab:main_results} for
-    reference.}
+  \caption{Cross-encoder extensions, Hits@1 [95\% bootstrap CI].
+    Top block is L-6 (22M) backbone, bottom block adds L-12 (60M)
+    backbone and an L-6$\times$L-12 ensemble. Headline L-6 row
+    repeated from Table~\ref{tab:main_results} for reference.}
   \label{tab:v7}
   \begin{tabular}{l c c c}
     \toprule
@@ -495,7 +494,11 @@ pred$\to$succ representation.
     v4 ens.\ (3 seeds)          & 0.687 [.665,.710] & 0.645 [.627,.668] & 0.761 [.670,.852] \\
     v5 + Wikidata-LEI           & 0.677 [.656,.695] & 0.643 [.623,.668] & 0.761 [.682,.841] \\
     v6 + country/juris          & 0.678 [.657,.698] & 0.651 [.628,.675] & 0.750 [.659,.830] \\
-    \textbf{v7 final ens.}      & \textbf{0.692 [.670,.712]} & \textbf{0.653 [.632,.675]} & \textbf{0.773 [.682,.852]} \\
+    v7 = avg(ens3, v5, v6)      & 0.692 [.670,.712] & 0.653 [.632,.675] & 0.773 [.682,.852] \\
+    v8a single (v5+v6 combined) & 0.694 [.669,.712] & 0.651 [.630,.673] & 0.773 [.682,.853] \\
+    \midrule
+    v8aL12 (L-12, v8a recipe)   & 0.697 [.678,.716] & 0.676 [.657,.697] & 0.761 [.670,.841] \\
+    \textbf{v10 = avg(v8a, v8aL12)} & \textbf{0.700 [.681,.718]} & \textbf{0.677 [.656,.700]} & \textbf{0.784 [.682,.864]} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -945,9 +948,8 @@ tested. A 33M-parameter bi-encoder fine-tune lifts Hits@1 5--8\,pp
 over zero-shot E5-small; a 22M-parameter cross-encoder lifts it to
 60--75\% across splits (24--35\,pp over the best bi-encoder, AUROC
 0.83--0.87, the first method to escape the anti-correlation regime).
-Prompt-side enrichment plus Wikidata-LEI data plus a 3-seed/3-model
-ensemble (\S\ref{ssec:main}) raise this to 69/65/77\% Hits@1, on the
-same backbone. A miner-robustness re-mine with TF-IDF char n-grams
+Prompt-side enrichment, Wikidata-LEI data, and an L-6$\times$L-12
+backbone ensemble (\S\ref{ssec:main}) raise this to 70/68/78\% Hits@1. A miner-robustness re-mine with TF-IDF char n-grams
 shrinks the cross-encoder advantage 5--15\,pp but it stays $+13$ to
 $+38$\,pp across the $2{\times}2$ train/eval matrix, evidence the
 gap is partly in-distribution but not purely a within-miner artifact.

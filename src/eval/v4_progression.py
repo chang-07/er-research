@@ -25,6 +25,8 @@ VARIANTS = [
     ("v8 MEGA5: s42+s7+s1337+v5+v6",  "method_v8_mega5_ensemble"),
     ("v8a single (v5+v6 data+prompt)", "method_v8a_combined"),
     ("v9: avg(v8a, v4_ens3)",          "method_v9_v8a_x_ens3"),
+    ("v8aL12 (v8a, L-12 backbone)",    "method_v8aL12_combined"),
+    ("v10 = avg(v8a, v8aL12)",         "method_v10_L6xL12"),
 ]
 
 
