@@ -35,11 +35,64 @@ LEGAL_SUFFIXES = {
     "THE", "AND", "OF",
 }
 
-def format_entity(name, country, form):
+# Country / jurisdiction code -> human-readable name. Built lazily from
+# pycountry so we don't import it unless needed.
+_ISO_NAME = None
+def _iso_name(code):
+    global _ISO_NAME
+    if _ISO_NAME is None:
+        try:
+            import pycountry
+            _ISO_NAME = {c.alpha_2: c.name for c in pycountry.countries}
+            # GLEIF also uses sub-divisions for legal_jurisdiction (e.g.
+            # "US-DE" for Delaware); add subdivisions as "US-DE: Delaware".
+            for s in pycountry.subdivisions:
+                _ISO_NAME[s.code] = s.name
+        except Exception:
+            _ISO_NAME = {}
+    return _ISO_NAME.get(code, code)
+
+def format_entity(name, country, form, city=None, year=None,
+                  parent_name=None, child_names=None,
+                  jurisdiction=None, category=None, hq_country=None):
+    """Enriched text representation.
+
+    Adds (when available) city, creation year, parent entity name, and up to
+    2 subsidiary names from the GLEIF Level-2 relationship graph. v6 extends
+    this with country-name expansion (ISO alpha-2 -> human-readable),
+    legal_jurisdiction subdivision (e.g. US-DE -> Delaware), entity category
+    when non-default, and hq_country when it differs from the legal address
+    country. These add MiniLM-recognisable tokens for the held-out
+    jurisdiction split where ISO codes alone provide weak transfer.
+    """
     name = (name or "").strip() or "(unknown)"
-    country = (country or "??").strip() or "??"
+    country_raw = (country or "??").strip() or "??"
+    country_full = _iso_name(country_raw)
+    if country_full != country_raw:
+        country_str = f"{country_raw} ({country_full})"
+    else:
+        country_str = country_raw
     form = (form or "??").strip() or "??"
-    return f"{name} | jurisdiction: {country} | form: {form}"
+    parts = [name, f"jurisdiction: {country_str}", f"form: {form}"]
+    if jurisdiction and jurisdiction != country_raw:
+        j_full = _iso_name(jurisdiction)
+        parts.append(f"legal jurisdiction: {j_full}")
+    if hq_country and hq_country != country_raw:
+        parts.append(f"hq country: {_iso_name(hq_country)}")
+    if category and category != "GENERAL":
+        parts.append(f"category: {category.lower().replace('_', ' ')}")
+    if city:
+        parts.append(f"city: {city.strip()}")
+    if year:
+        parts.append(f"founded: {year}")
+    if parent_name:
+        parts.append(f"parent: {parent_name.strip()}")
+    if child_names:
+        # cap at 2 to keep token budget reasonable
+        cn = [c.strip() for c in child_names[:2] if c and c.strip()]
+        if cn:
+            parts.append(f"subsidiaries: {', '.join(cn)}")
+    return " | ".join(parts)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -92,9 +145,40 @@ def main():
         lei_set |= set(pp["anchor_lei"]) | set(pp["candidate_lei"])
     ent = pq.read_table(
         os.path.join(args.data, "entities.parquet"),
-        columns=["lei", "legal_name", "legal_addr_country", "legal_form_code"],
+        columns=["lei", "legal_name", "legal_addr_country", "legal_form_code",
+                  "legal_addr_city", "entity_creation_date",
+                  "legal_jurisdiction", "category", "hq_addr_country"],
     ).to_pandas().drop_duplicates(subset=["lei"], keep="first")
     ent = ent[ent["lei"].isin(lei_set)].reset_index(drop=True)
+    # creation year only (full date is overkill in the prompt)
+    ent["creation_year"] = pd.to_datetime(ent["entity_creation_date"],
+                                            utc=True, errors="coerce").dt.year
+
+    # Load relationships and build parent/children lookups. Use the
+    # IS_DIRECTLY_CONSOLIDATED_BY type as the "parent" signal (corporate-
+    # group membership); skip fund-management edges to keep the signal clean.
+    print("loading relationships...", file=sys.stderr)
+    rel = pq.read_table(
+        os.path.join(args.data, "relationships.parquet"),
+        columns=["start_lei", "end_lei", "relationship_type",
+                 "relationship_status"],
+    ).to_pandas()
+    rel = rel[(rel["relationship_status"] == "ACTIVE")
+              & (rel["relationship_type"].isin(
+                  ["IS_DIRECTLY_CONSOLIDATED_BY",
+                   "IS_ULTIMATELY_CONSOLIDATED_BY"]))]
+    # parent_of[lei] = lei of parent
+    parent_of = dict(zip(rel["start_lei"], rel["end_lei"]))
+    # children_of[lei] = list of child LEIs (max 5 each)
+    from collections import defaultdict
+    children_of = defaultdict(list)
+    for child, parent in zip(rel["start_lei"], rel["end_lei"]):
+        if len(children_of[parent]) < 5:
+            children_of[parent].append(child)
+    name_of = dict(zip(ent["lei"], ent["legal_name"].fillna("")))
+    print(f"  parent edges: {len(parent_of):,}; "
+          f"entities with children: {len(children_of):,}",
+          file=sys.stderr)
     ent_map = ent.set_index("lei").to_dict(orient="index")
     print(f"  {len(pairs):,} pair rows / {len(ent):,} entities", file=sys.stderr)
 
@@ -102,8 +186,26 @@ def main():
         r = ent_map.get(lei)
         if not r:
             return "(unknown)"
-        return format_entity(r.get("legal_name"), r.get("legal_addr_country"),
-                              r.get("legal_form_code"))
+        # parent + up-to-2 children from L2 RR
+        parent_lei = parent_of.get(lei)
+        parent_name = name_of.get(parent_lei) if parent_lei else None
+        kids = children_of.get(lei, [])
+        child_names = [name_of.get(c) for c in kids if name_of.get(c)]
+        year = r.get("creation_year")
+        year_str = None
+        try:
+            if year and not (isinstance(year, float) and (year != year)):
+                year_str = str(int(year))
+        except Exception:
+            pass
+        return format_entity(
+            r.get("legal_name"), r.get("legal_addr_country"),
+            r.get("legal_form_code"), city=r.get("legal_addr_city"),
+            year=year_str, parent_name=parent_name, child_names=child_names,
+            jurisdiction=r.get("legal_jurisdiction"),
+            category=r.get("category"),
+            hq_country=r.get("hq_addr_country"),
+        )
 
     # ---- training set (no leakage) ----------------------------------------
     pos = pairs[pairs["label"] == 1]

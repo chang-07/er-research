@@ -46,7 +46,12 @@ $+5$--$8$\,pp; a fine-tuned cross-encoder (22M parameters,
 $\approx$17 min on MPS) gives the headline:
 60.5 / 56.5 / 75.0\% Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI),
 $+24$--$35$\,pp over the best bi-encoder, AUROC 0.83--0.87
-(vs.\ $<$0.5 for any similarity method). A miner-robustness experiment
+(vs.\ $<$0.5 for any similarity method). A prompt-and-ensemble
+extension (enriching the text with GLEIF L2 parent/subsidiary names,
+country expansion, and Wikidata-LEI positives; averaging three seeds
+with the Wikidata- and country-expanded variants) lifts Hits@1 a
+further $+8.7 / +8.8 / +2.3$\,pp on the same backbone, reaching
+69.2 / 65.3 / 77.3\%. A miner-robustness experiment
 re-mines hard negs with TF-IDF char-3gram cosine, retrains a second
 cross-encoder, and scores the $2{\times}2$ train$\times$eval matrix:
 the cross-encoder advantage over the baseline stays $+13$ to
@@ -389,6 +394,7 @@ ranking each anchor's candidates by score; AUROC and AUPRC for pair-wise
 classification framing; and the train-tuned F1 at the F1-optimal threshold.
 
 \subsection{Headline results}
+\label{ssec:main}
 
 Table~\ref{tab:main_results} reports test-set metrics across the three
 split regimes for all baselines and method variants on the v2 evaluation
@@ -439,29 +445,62 @@ Figure~\ref{fig:main} visualizes the table.
 \end{table*}
 
 \paragraph{Larger cross-encoder backbone helps modestly.}
-Scaling the cross-encoder from MiniLM-L-6 (22M) to MiniLM-L-12 (60M, $\sim$3$\times$)
-lifts Hits@1 by $+2.5$\,pp on TIME ($0.605 \to 0.630$) and $+3.0$\,pp on
-EVENT ($0.564 \to 0.594$), with JURIS unchanged ($0.750$). AUROC moves
-$+0.8$, $+1.1$, $+0.2$\,pp respectively. The gain is real but small
-relative to the headline cross-encoder lift ($+24$--$35$\,pp over the
-best bi-encoder); the marginal returns from scaling within the cross-encoder
-family at this scale appear bounded, suggesting either (a) the
-benchmark's residual difficulty is fundamentally information-theoretic
-(no amount of capacity recovers from same-country lexical-collision
-distractors that lack a non-name disambiguating signal), or (b) larger
-backbones (E5-large, MS-MARCO ELECTRA, full BERT-base) would continue
-the marginal trend without a step-change. We retain L-6 as the headline
-for cost-effectiveness.
+Scaling MiniLM-L-6 (22M) to L-12 (60M) lifts Hits@1 $+2.5 / +3.0 /
++0.0$\,pp on TIME / EVENT / JURIS; AUROC $+0.8 / +1.1 / +0.2$. We
+retain L-6 as headline for cost-effectiveness, since prompt and
+ensemble extensions (next paragraph) deliver larger gains on the
+same backbone.
 
-\paragraph{Backbone size does not break the bi-encoder ceiling.} Scaling
-the bi-encoder backbone 3$\times$ (E5-small-v2, 33M $\to$ E5-base-v2,
-110M) leaves TIME and EVENT Hits@1 essentially unchanged
-($-0.2$ and $-1.2$\,pp respectively) and modestly improves JURIS
-($+2.3$\,pp). AUROC follows the same pattern. We read this as
-confirmation that the bi-encoder's constraint is structural rather
-than under-parameterization: cosine-close embeddings for
-lexically-different lifecycle pairs are not a problem more parameters
-fix. The cross-encoder remains the right tool for this task.
+\paragraph{Prompt-side and ensemble extensions add $+8$\,pp Hits@1.}
+Three orthogonal modifications, all on the L-6 backbone, lift
+Hits@1 over the headline cross-encoder.
+\textbf{(i)} \emph{Prompt enrichment} adds parent / up-to-2
+subsidiary names from GLEIF Level-2, legal-address city, entity
+creation year, country expansion via \texttt{pycountry}
+(\texttt{SG} $\to$ \texttt{SG (Singapore)}; US states via ISO-3166-2),
+\texttt{legal\_jurisdiction} when it differs from the address
+country, and \texttt{category} when non-default (FUND etc.).
+\textbf{(ii)} \emph{Wikidata-LEI bridge.} A second SPARQL pass uses
+P1278 (LEI) on both sides of P156 / P1366 / P7888 (followed-by /
+replaced-by / merged-into), recovering 259 cross-jurisdiction
+positives not in our GLEIF set.
+\textbf{(iii)} \emph{Multi-seed ensemble} averages sigmoid scores
+from three enriched cross-encoders (seeds 42, 7, 1337).
+The final v7 ensemble averages the seed ensemble, the
+Wikidata-augmented model, and the country-expanded model, reaching
+$\mathbf{0.692 / 0.653 / 0.773}$ Hits@1 ($+8.7 / +8.8 / +2.3$\,pp
+over the L-6 headline; Table~\ref{tab:v7}). A \emph{negative}
+finding: symmetric scoring (averaging $s(a,b)$ and $s(b,a)$) hurts
+$-0.9 / -1.9 / -9.1$\,pp, confirming the cross-encoder learns a
+strongly directional pred$\to$succ representation.
+
+\begin{table}[t]
+  \centering\small
+  \caption{Cross-encoder extensions on the L-6 backbone, Hits@1
+    [95\% bootstrap CI]. v7 averages v4 ens3, v5, v6 sigmoid scores.
+    Headline L-6 row repeated from Table~\ref{tab:main_results} for
+    reference.}
+  \label{tab:v7}
+  \begin{tabular}{l c c c}
+    \toprule
+    Model & TIME & EVENT & JURIS \\
+    \midrule
+    Headline L-6                & 0.605 [.586,.627] & 0.564 [.542,.589] & 0.750 [.659,.830] \\
+    v4 enriched (s=42)          & 0.675 [.653,.697] & 0.641 [.620,.662] & 0.750 [.659,.830] \\
+    v4 ens.\ (3 seeds)          & 0.687 [.665,.710] & 0.645 [.627,.668] & 0.761 [.670,.852] \\
+    v5 + Wikidata-LEI           & 0.677 [.656,.695] & 0.643 [.623,.668] & 0.761 [.682,.841] \\
+    v6 + country/juris          & 0.678 [.657,.698] & 0.651 [.628,.675] & 0.750 [.659,.830] \\
+    \textbf{v7 final ens.}      & \textbf{0.692 [.670,.712]} & \textbf{0.653 [.632,.675]} & \textbf{0.773 [.682,.852]} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Backbone size does not break the bi-encoder ceiling.}
+Scaling E5-small (33M) to E5-base (110M) leaves TIME/EVENT Hits@1
+unchanged ($-0.2 / -1.2$\,pp) and lifts JURIS $+2.3$\,pp. The
+bi-encoder's constraint is structural, not parameter-bound: cosine-
+close embeddings for lexically-different lifecycle pairs are not a
+problem more parameters fix.
 
 \begin{figure}[t]
   \centering
@@ -893,43 +932,27 @@ multi-class modeling of related-but-distinct entities is a v3 target.
 
 We introduced \textsc{TemporalLink}, the first open benchmark for
 lifecycle-aware entity resolution on financial entities, assembled
-end-to-end from public data in approximately seven minutes of compute.
-The benchmark exhibits a structural anti-correlation between name
-similarity and lifecycle linkage --- a property of how its hard
-negatives are constructed, not a universal law of entity resolution
---- that breaks every name-based baseline we tested. We presented a
-33M-parameter bi-encoder fine-tune that lifts Hits@1 by 5--8\,pp over
-the zero-shot baseline, and a 22M-parameter cross-encoder fine-tune
-that lifts Hits@1 to 60--75\% across the three splits (24--35\,pp
-above the best bi-encoder, with bootstrap 95\% CIs of
-$\pm$2.2/2.4/8.8\,pp), the first method on the benchmark to escape
-the anti-correlation regime (AUROC 0.83--0.87). A miner-robustness
-experiment re-mined hard negatives with a structurally orthogonal
-TF-IDF char n-gram signal and re-evaluated: the cross-encoder advantage
-over the zero-shot baseline shrinks by 5--15\,pp under candidate-pool
-shift but remains substantial ($+13$ to $+38$\,pp across all six
-cells of the $2{\times}2$ train/evaluate matrix), evidence that the
+end-to-end from public data in seven minutes of compute. The benchmark
+exhibits a structural anti-correlation between name similarity and
+lifecycle linkage --- a property of its hard-negative construction,
+not a universal law --- that breaks every name-based baseline we
+tested. A 33M-parameter bi-encoder fine-tune lifts Hits@1 5--8\,pp
+over zero-shot E5-small; a 22M-parameter cross-encoder lifts it to
+60--75\% across splits (24--35\,pp over the best bi-encoder, AUROC
+0.83--0.87, the first method to escape the anti-correlation regime).
+Prompt-side enrichment plus Wikidata-LEI data plus a 3-seed/3-model
+ensemble (\S\ref{ssec:main}) raise this to 69/65/77\% Hits@1, on the
+same backbone. A miner-robustness re-mine with TF-IDF char n-grams
+shrinks the cross-encoder advantage 5--15\,pp but it stays $+13$ to
+$+38$\,pp across the $2{\times}2$ train/eval matrix, evidence the
 gap is partly in-distribution but not purely a within-miner artifact.
-Two bi-encoder ablations surface the contribution of state features
-and the (initially) surprising hurt from naive hard-negative
-construction, which v2 E5-cosine mining reverses. A 3$\times$ scaling
-of the bi-encoder backbone (E5-small $\to$ E5-base, 33M $\to$ 110M
-params) leaves headline Hits@1 essentially unchanged across all
-splits, supporting that the bi-encoder's ceiling is structural rather
-than under-parameterized. Cluster-level B-cubed F1 confirms the
-cross-encoder advantage at the cluster level
-(0.90--0.92 vs.\ $\leq$0.47 for any bi-encoder), the regime that
-downstream deduplication consumers actually care about. We document ten
-honest limitations of the benchmark and experiments
-(Section~\ref{sec:limitations}), several of which are natural targets
-for v3 work: a frontier-LLM baseline, an expanded held-out-jurisdiction
-pool, multi-class modeling of related-but-distinct entities, and
-candidate-pool evaluation drawn from a fielded retrieval system rather
-than a name-similarity miner. We hope the benchmark, methods, and
-robustness analysis serve as a useful foundation for the research
-community working on financial entity resolution, and as a concrete
-artifact for the engineering teams whose internal workflows depend
-on exactly this primitive.
+Cluster-level B-cubed F1 confirms the cross-encoder advantage in the
+regime downstream deduplication consumers care about (0.90--0.92 vs.\
+$\leq$0.47 for any bi-encoder). We document ten honest limitations
+(\S\ref{sec:limitations}); natural v3 targets are a frontier-LLM
+baseline, an expanded held-out-jurisdiction pool, multi-class
+modeling of related-but-distinct entities, and candidate-pool
+evaluation drawn from a fielded retrieval system.
 
 \paragraph{Reproducibility.} All code, parsers, prediction artifacts,
 trained model weights, and the miner-robustness experiment are released
