@@ -319,22 +319,12 @@ Each positive gets up to 5 hard negatives if its splits are all
   \label{fig:histogram}
 \end{figure}
 
-\subsection{Wikidata marquee supplement}
-
-We supplement the GLEIF-derived labels with a curated set of high-profile
-mergers and acquisitions from Wikidata's P156 (\emph{followed by}) property,
-restricted to instances of business / organization. After matching both
-sides of each pair to GLEIF entities by normalized legal name, we obtain
-\textbf{302 marquee pairs with both sides resolved}, of which 283 (94\%)
-are \emph{not} captured by GLEIF's \texttt{SuccessorEntity} field. Notable
-matches include Sprint Corporation $\to$ T-Mobile US, Cannon Group $\to$
-Metro-Goldwyn-Mayer, Interbrew $\to$ Anheuser-Busch InBev, Chemical
-Financial $\to$ TCF Financial, and Meredith $\to$ Gray Media. The
-supplement is \emph{released alongside the benchmark for community use}
-but is \emph{not included in our headline evaluation}
-(\texttt{pairs.parquet}); future versions of the benchmark could
-incorporate Wikidata pairs as a held-out ``marquee evaluation slice''
-once a stable hard-negative protocol for them is defined.
+\paragraph{Wikidata marquee supplement.} Released alongside the
+benchmark: 302 high-profile M\&A pairs from Wikidata P156
+(\emph{followed by}) both-sides-resolved to GLEIF, 283 of which are
+not captured by GLEIF \texttt{SuccessorEntity} (Sprint\,$\to$\,T-Mobile,
+Cannon\,$\to$\,MGM, Interbrew\,$\to$\,AB-InBev). Not used in our
+headline evaluation; provided for community use.
 
 \section{Method}
 \label{sec:method}
@@ -350,63 +340,19 @@ constraint and provides the headline result.
 \subsection{Bi-encoder}
 \label{ssec:bi}
 
-We fine-tune a small open dual-encoder, \texttt{intfloat/e5-small-v2}
-(33M parameters, 384-dim embeddings), via supervised contrastive learning
-on the benchmark's positives, with entity-state-at-time signal folded into
-the text prompt.
-
-\paragraph{Input representation.} For each LEI $\ell$ with legal name
-$n_\ell$, jurisdiction (legal-address country) $c_\ell$, and legal-form
-code $f_\ell$, we form
-\[
-  \texttt{text}(\ell) =
-  \text{``query: }
-  n_\ell \;\texttt{|}\;
-  \text{jurisdiction: } c_\ell \;\texttt{|}\;
-  \text{form: } f_\ell\text{''}.
-\]
-The \texttt{query:} prefix follows the E5 convention for symmetric retrieval.
-We chose to fold state features into the text prompt rather than learn a
-separate tabular head: the encoder already handles structured inputs robustly,
-the implementation is simpler, and the ablation (Section~\ref{sec:experiments})
-shows the design choice carries weight.
-
-\paragraph{Training data.} We train on the 26{,}297 positives that lie in
-the \texttt{train} subset of \emph{all three} split regimes simultaneously
---- the strictest no-leakage construction.  For each positive (predecessor
-LEI, successor LEI), we sample one hard negative uniformly from
-\texttt{hard\_negatives.parquet} (when available), forming an
-$(\text{anchor}, \text{positive}, \text{hard negative})$ triple.
-
-\paragraph{Loss.} We optimize the MultipleNegativesRankingLoss
-(InfoNCE) implemented in sentence-transformers: for each
-$(\text{anchor}_i, \text{positive}_i, \text{hard negative}_i)$ triple
-in a batch of size $B$, the loss treats the positive as the gold match
-and \emph{all} other in-batch positives plus the explicit hard negative
-as negatives, normalized over cosine similarities at a fixed temperature.
-
-\paragraph{Training configuration.} 3 epochs, batch 32, AdamW with
-learning rate $2\times 10^{-5}$ and 100 warmup steps, on Apple Silicon MPS.
-End-to-end wall time per variant: $\approx$6 minutes training + $\approx$50
-seconds for the final scoring pass over all 112{,}127 distinct LEIs in the
-benchmark.
-
-\paragraph{Variants for ablation.}
-\begin{itemize}
-  \item \texttt{method\_full}: state features in the prompt, one sampled
-        explicit hard negative per anchor (the v1 bi-encoder method).
-  \item \texttt{method\_no\_state}: legal name only in the prompt
-        (\texttt{"query: } $n_\ell$\texttt{"}), one hard negative per anchor.
-  \item \texttt{method\_no\_hard}: state features in the prompt; no
-        explicit hard negatives (in-batch negatives only).
-  \item \texttt{method\_v2\_full}: identical to \texttt{method\_full}
-        except the hard negatives are mined by E5-cosine within the same
-        jurisdiction rather than by token overlap (the v2 hard-neg fix
-        responding to the v1 ablation finding; see
-        Section~\ref{ssec:hard_negs}), and the training positives are
-        augmented with 1{,}372 transitive successor-chain pairs derived
-        from the benchmark's successor graph.
-\end{itemize}
+We fine-tune \texttt{intfloat/e5-small-v2} (33M params, 384-dim) via
+supervised contrastive learning with state features folded into the
+text prompt: \texttt{"query: } $n_\ell$ \texttt{| jurisdiction: }
+$c_\ell$ \texttt{| form: } $f_\ell$\texttt{"}. Training uses the
+26{,}297 positives in the strict no-leakage intersection of all
+three split regimes (one hard neg per anchor), MultipleNegativesRanking
+loss (InfoNCE; in-batch + explicit hard neg as negatives), 3 epochs,
+batch 32, AdamW lr$=2\times 10^{-5}$, 100 warmup, $\sim$6 min on MPS.
+Ablation variants: \texttt{method\_no\_state} (name only),
+\texttt{method\_no\_hard} (in-batch negs only), \texttt{method\_v2\_full}
+(adds v2 E5-cosine negs + 1{,}372 transitive positives). Loss is
+contrastive; the cross-encoder below uses BCE on the logit --- different
+objectives by architectural convention, not strictly controlled.
 
 \subsection{Cross-encoder}
 \label{ssec:ce}
@@ -433,31 +379,15 @@ Our benchmark's hard-negative pool is fixed (5--10 negs per positive), so
 direct full scoring is feasible and the numbers in
 Table~\ref{tab:main_results} reflect that setting.
 
-\subsection{v2 hard-negative re-mining}
+\paragraph{v2 hard-negative re-mining (\texttt{ssec:hard\_negs}).}
 \label{ssec:hard_negs}
-
-The v1 ablation showed that \texttt{method\_no\_hard} slightly beats
-\texttt{method\_full}, suggesting the \texttt{token\_overlap\_same\_country}
-fuzzy fallback (92\% of v1 hard negs) is noisy enough to hurt training.
-We re-mine in v2: for each positive predecessor, retrieve the top-20
-nearest neighbors in the same jurisdiction by E5-small cosine, excluding
-self, known successors, and parent/subsidiary related entities.
-
-| Class | v1 count | v2 count |
-| --- | ---: | ---: |
-| token-overlap fuzzy fallback | 232{,}601 | --- |
-| e5-cosine same-country (replaces above) | --- | 631{,}632 |
-| same-name same-country | 10{,}208 | 10{,}208 |
-| same-name diff-country | 10{,}703 | 10{,}703 |
-| parent/subsidiary (from Level-2 RR) | 221 | 221 |
-| total | 253{,}733 | 652{,}764 |
-
-Coverage rises from $\sim$20K to 31{,}714 predecessors (mean 20.6 hard
-negs each). The v2 hard negs erase the v1 "hard negs hurt" finding ---
-\texttt{method\_v2\_full} matches \texttt{method\_no\_hard} on Hits@1 ---
-but do not further improve the bi-encoder, suggesting in-batch negatives at
-batch 32 already provide sufficient signal for the 33M-parameter backbone.
-The cross-encoder, by contrast, benefits clearly from the v2 hard negs.
+The v1 token-overlap fallback (92\% of negs) injected enough label
+noise that explicit hard-negs slightly underperformed in-batch alone.
+v2 replaces it with E5-cosine top-20 same-country candidates,
+yielding 652{,}764 total negs across 31{,}714 predecessors (vs 253{,}733
+v1; coverage $\sim$20K $\to$ 31{,}714). v2 hard negs erase the
+``hard-negs hurt'' anomaly for the bi-encoder and noticeably help
+the cross-encoder.
 
 \section{Experiments}
 \label{sec:experiments}
@@ -779,6 +709,30 @@ the v2 hard-negative strategy of replacing token-overlap with sentence-
 encoder-cosine mining, and complicates the common assumption in ER that
 ``more hard negatives is always better.''
 
+\subsection{Additional diagnostics}
+\label{ssec:diagnostics}
+
+We summarize four diagnostics released in the code repository
+(full tables and figures available there; we are page-limited here).
+\textbf{B-cubed cluster F1} on the test partition is 0.92 / 0.90 / 0.91
+for the cross-encoder vs.\ $\leq$0.47 for any bi-encoder (which
+collapses to one giant cluster at the tuned threshold); restricting
+to records in true clusters of size $\geq 2$ (64\% of test records
+are singletons) gives the honest cross-encoder F1 of 0.85 / 0.84 / 0.88.
+\textbf{Calibration:} cross-encoder Expected Calibration Error
+(10-bin) is 0.20, Brier 0.18 --- substantial over-confidence in
+high-score bins; consumers needing probabilities should apply
+temperature scaling. \textbf{Cross-domain transfer} (zero-shot
+application to Magellan Walmart-Amazon) shows the cross-encoder
+\emph{loses} to its own zero-shot base encoder by 5.9\,pp AUROC,
+evidence the fine-tuned representation is specialized to
+lifecycle-spanning legal-entity matching, not generic ER.
+\textbf{Secondary label-quality check}: 277 sampled positives
+re-classified by an orthogonal heuristic agree with the primary
+GLEIF auto-classifier on 98.7\% [95\% CI 97.0--100\%] of the
+confident (231/277) subset, bounding label noise below 2\% on that
+subset; the remaining 16.6\% were marked uncertain.
+
 \subsection{Where each method is fooled}
 
 The negative-class breakdown (Table~\ref{tab:neg_class}) reports per-
@@ -1007,348 +961,7 @@ methods, and the v3 robustness experiment can be reproduced end-to-end
 on a single MacBook laptop in approximately one hour from the raw GLEIF
 XML.
 
-% acmart sets bibliographystyle to ACM-Reference-Format by default; do
-% not override unless targeting a non-ACM venue.
-% =====================================================================
-% APPENDIX BARRIER — content below moves to appendix in the ICAIF 8-page
-% version. For arXiv / NeurIPS / ECIR (more generous page budgets),
-% delete the \appendix line below to keep this content in the main body.
-% =====================================================================
-\appendix
-
-\section{Additional analyses}
-\label{sec:additional}
-
-This appendix bundles diagnostics that strengthen the headline claims
-and address common reviewer concerns for ER benchmarks: cost
-and latency reporting (Appendix~\ref{ssec:cost_latency}), per-jurisdiction
-disaggregation of the JURIS-split headline (Appendix~\ref{ssec:per_juris_section}),
-score calibration (Appendix~\ref{ssec:calibration}), cluster-level
-metrics (Appendix~\ref{ssec:bcubed}), a named error taxonomy on
-cross-encoder failures (Appendix~\ref{ssec:error_taxonomy}), a
-secondary label-quality check (Appendix~\ref{ssec:label_check}),
-data-efficiency of the bi-encoder (Appendix~\ref{ssec:dataeff}), a
-cross-domain transfer test (Appendix~\ref{ssec:transfer}), and a
-comparison to existing benchmarks (Appendix~\ref{ssec:comparison_section}).
-
-\subsection{Cost and latency}
-\label{ssec:cost_latency}
-
-Per OpenSanctions Pairs~\cite{opensanctions2026} and
-Peeters et al.~\cite{peeters2024llmem}, modern ER benchmarks report
-per-call dollar cost and inference latency. Table~\ref{tab:cost_latency}
-collects these for all methods plus a representative LLM panel.
-All non-LLM methods score the full benchmark in under a few minutes on a
-MacBook MPS device; the cross-encoder is 2$\times$ slower per pair than
-the bi-encoder at inference time. LLM costs assume system-prompt
-caching (one cache write, per-call cost dominated by user + output
-tokens).
-
-\begin{table}[t]
-  \centering
-  \small
-  \caption{Inference cost and latency per method. Cost per 1{,}000
-    pair classifications at late-2025 list prices (Anthropic / OpenAI /
-    Google / Together AI). Latency in ms/pair measured on Apple MPS
-    (M-series). LLM latency depends on network and is omitted.}
-  \label{tab:cost_latency}
-  \begin{tabular}{l rrr}
-    \toprule
-    Method & Params (M) & ms / pair & \$ / 1k pairs \\
-    \midrule
-    \texttt{exact\_name}           & 0   & $<$0.01 & 0.00 \\
-    \texttt{token\_set}            & 0   & $<$0.01 & 0.00 \\
-    \texttt{tfidf\_char}           & 0   & 0.01    & 0.00 \\
-    \texttt{sentence\_encoder}     & 33  & 0.32    & 0.00 \\
-    \texttt{method\_v2\_full}      & 33  & 0.32    & 0.00 \\
-    \texttt{method\_v2\_crossenc}  & 22  & 0.64    & 0.00 \\
-    \midrule
-    LLM Llama-3.1-8B (Together)    & 8\,000 & --- & 0.03 \\
-    LLM Gemini 2.0 Flash           & ---    & --- & 0.03 \\
-    LLM GPT-4o-mini                & ---    & --- & 0.05 \\
-    LLM Gemini 2.5 Flash           & ---    & --- & 0.12 \\
-    LLM Claude Haiku 4.5           & ---    & --- & 0.17 \\
-    LLM Claude Sonnet 4.6          & ---    & --- & 0.51 \\
-    LLM GPT-4o                     & ---    & --- & 0.81 \\
-    LLM Claude Opus 4.7            & ---    & --- & 2.55 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{Per-jurisdiction breakdown on the held-out-jurisdiction split}
-\label{ssec:per_juris_section}
-
-The headline JURIS Hits@1 aggregates across SG, JP, and BR. Composition
-is uneven: of the 88 anchors with hard negatives in test, SG contributes
-56, BR 21, and JP only 11 (many JP positives have no hard negative in
-test, leaving singleton-candidate anchors that are excluded from Hits@1
-per evaluate.py's convention). Table~\ref{tab:per_juris} disaggregates;
-the cross-encoder advantage over zero-shot E5 holds in all three
-countries ($+29$, $+55$, $+29$\,pp), confirming the aggregate result is
-not driven by any single country.
-
-\begin{table}[t]
-  \centering
-  \small
-  \caption{Hits@1 on the held-out-jurisdiction test set per country.
-    $n$ is anchors with at least one hard negative in test (singletons
-    excluded for fair Hits@1).}
-  \label{tab:per_juris}
-  \begin{tabular}{l rrr r}
-    \toprule
-    Country & $n$ anchors & E5 zero-shot & v2 cross-enc & $\Delta$ \\
-    \midrule
-    BR & 21 & 0.524 & \textbf{0.810} & $+28.6$\,pp \\
-    JP & 11 & 0.273 & \textbf{0.818} & $+54.5$\,pp \\
-    SG & 56 & 0.429 & \textbf{0.714} & $+28.6$\,pp \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{Calibration analysis}
-\label{ssec:calibration}
-
-Aggregate ranking metrics (Hits@1, AUROC) do not tell consumers what
-their scores mean as probabilities. We report Expected Calibration
-Error (ECE, 10-bin) and Brier score across all test pairs
-(Table~\ref{tab:calibration}); Figure~\ref{fig:calibration} shows the
-corresponding reliability diagram. The cross-encoder is the only method
-with calibrated-by-design (sigmoid) outputs; ECE = 0.20 indicates
-substantial over-confidence in the high-score bins, and downstream
-consumers who need calibrated probabilities should apply temperature
-scaling. Bi-encoder and zero-shot E5 rows are cosine similarities
-clipped to $[0, 1]$; their ECE is shown for completeness but they were
-never intended as probabilities.
-
-\begin{table}[t]
-  \centering
-  \small
-  \caption{Calibration on the union of three split test sets,
-    deduplicated ($n = 28{,}867$). Bi-encoder cosine scores are clipped
-    to $[0, 1]$ before computing ECE / Brier and shown for reference
-    only.}
-  \label{tab:calibration}
-  \begin{tabular}{l rr}
-    \toprule
-    Method & ECE (10-bin) & Brier \\
-    \midrule
-    E5-small zero-shot       & 0.724 & 0.672 \\
-    bi-encoder v2\_full      & 0.538 & 0.479 \\
-    cross-encoder v2         & \textbf{0.203} & \textbf{0.177} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/fig4_calibration.pdf}
-  \caption{Reliability diagram (10-bin) on all test pairs. The cross-
-    encoder is the only method whose scores are intended as
-    probabilities.}
-  \label{fig:calibration}
-\end{figure}
-
-\subsection{Cluster-level metrics (B-cubed)}
-\label{ssec:bcubed}
-
-Pair-level F1 can be misleading for downstream clustering /
-deduplication~\cite{binette2024}: a method that nails most pairs but
-spuriously merges distinct clusters can score high on pair F1 and yet
-be useless in practice. We complement pair-level metrics with B-cubed
-precision / recall (Table~\ref{tab:bcubed}) over the connected
-components induced by predicted edges above a train-tuned threshold.
-Bi-encoder cosine scores cluster everything into a single giant
-component at the tuned threshold (perfect recall but garbage
-precision), illustrating that cosine is the wrong basis for
-threshold-based clustering on this benchmark. The cross-encoder
-produces well-separated clusters across all three splits, with
-B-cubed F1 in the 0.90--0.92 range.
-
-\begin{table}[t]
-  \centering
-  \small
-  \caption{B-cubed cluster precision / recall / F1 on each split's
-    test partition. ``$F1_{nt}$'' is the same metric restricted to
-    records in true clusters of size $\geq 2$ (non-trivial clusters);
-    64\% of TIME-test records are singletons, so the unrestricted
-    F1 is inflated by easy ``singleton stays singleton'' cases. The
-    restricted number is the honest one to compare across methods.
-    The cross-encoder still dominates by a large margin on both
-    measures.}
-  \label{tab:bcubed}
-  \begin{tabular}{ll rrr r}
-    \toprule
-    Method & Split & B$^3$ P & B$^3$ R & B$^3$ F1 & B$^3$ F1$_{nt}$ \\
-    \midrule
-    E5 zero-shot        & TIME  & 0.240 & 1.000 & 0.387 & --- \\
-    bi-enc v2\_full     & TIME  & 0.240 & 1.000 & 0.387 & --- \\
-    cross-enc v2        & TIME  & \textbf{0.909} & \textbf{0.929} & \textbf{0.919} & \textbf{0.848} \\
-    \multicolumn{6}{l}{\small \hspace{4em}(n=17{,}739 all; n=6{,}328 nontrivial — 64\% are singletons)} \\
-    \midrule
-    E5 zero-shot        & EVENT & 0.258 & 1.000 & 0.410 & --- \\
-    bi-enc v2\_full     & EVENT & 0.258 & 1.000 & 0.410 & --- \\
-    cross-enc v2        & EVENT & \textbf{0.875} & \textbf{0.928} & \textbf{0.901} & \textbf{0.844} \\
-    \midrule
-    E5 zero-shot        & JURIS & 0.306 & 1.000 & 0.468 & --- \\
-    bi-enc v2\_full     & JURIS & 0.310 & 0.996 & 0.473 & --- \\
-    cross-enc v2        & JURIS & \textbf{0.875} & \textbf{0.950} & \textbf{0.911} & \textbf{0.883} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{Named error taxonomy on cross-encoder failures}
-\label{ssec:error_taxonomy}
-
-We sampled 122 cross-encoder failures (50 per split where available,
-22 from JURIS) and auto-tagged each with a heuristic taxonomy
-(Table~\ref{tab:error_taxonomy}). The dominant failure mode (76\% of
-sampled errors) is a same-country candidate with $\geq 2$ shared
-tokens that is not the true successor --- the cross-encoder has not
-fully escaped the lexical pull that fooled the bi-encoder. Hardest
-residual cases ($\sim$7\%) are anchors and true successors that share
-no tokens (e.g., absorbed entities whose name was replaced by the
-acquirer's), which genuinely need world-knowledge the cross-encoder
-cannot recover from name strings alone.
-
-\begin{table}[t]
-  \centering
-  \small
-  \caption{Cross-encoder failure taxonomy on 122 sampled failures
-    (categories mutually exclusive; top match wins).}
-  \label{tab:error_taxonomy}
-  \begin{tabular}{l rrr r}
-    \toprule
-    Category & TIME & EVENT & JURIS & Total \\
-    \midrule
-    same\_country\_token\_overlap   & 38 & 35 & 20 & \textbf{93} (76\%) \\
-    substring\_name\_overlap        &  7 &  4 &  0 & 11  (9\%) \\
-    no\_shared\_tokens\_with\_true  &  3 &  5 &  1 &  9  (7\%) \\
-    fooled\_by\_parent\_subsidiary  &  1 &  4 &  1 &  6  (5\%) \\
-    exact\_normalized\_name\_collision & 1 & 2 & 0 &  3  (2\%) \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{Secondary label-quality check}
-\label{ssec:label_check}
-
-GLEIF's \texttt{SuccessorEntity} field is reported by Local Operating
-Units and is the canonical source of our positives; we filter out the
-\texttt{likely\_administrative} class (5.4\%) via a primary
-auto-classifier (Section~\ref{sec:benchmark}). To bound label noise
-that the primary classifier may have missed, we apply an orthogonal
-secondary classifier --- a different rule set keyed on
-name-stem similarity, cross-script handling, and legal-form continuity ---
-to 277 sampled positives stratified by event type. The secondary
-classifier agrees with the primary on 228 pairs (82.3\%), disagrees
-on 3 (1.1\%), and is uncertain on 46 (16.6\%). Among the 231
-confident classifications, agreement is \textbf{98.7\% (95\% bootstrap
-CI 97.0\%--100.0\%)}, suggesting label noise in the primary classifier
-is below 2\% on its confident-positive subset. This is a methodological
-\emph{lower bound}; a tighter estimate requires multi-annotator expert
-labeling.
-
-\subsection{Data-efficiency of the bi-encoder}
-\label{ssec:dataeff}
-
-To check whether the bi-encoder's $+5$--$8$\,pp lift over zero-shot E5 is
-fragile to training-set size, we retrain \texttt{method\_v2\_full} at
-10\%, 25\%, 50\%, 75\%, and 100\% of the 27{,}201 training positives
-(uniform random subsample at each fraction; transitives included).
-Figure~\ref{fig:dataeff} reports Hits@1 per split. The bi-encoder is
-\emph{saturated by 10\% of the training data} (Hits@1 of
-0.248 / 0.286 / 0.500 on time / event / jurisdiction at 10\%;
-0.243 / 0.282 / 0.500 at 100\% --- a $-0.5$ to $0$\,pp delta despite
-10$\times$ more data). This corroborates the larger-backbone ablation:
-the bi-encoder's constraint is structural, and additional training pairs
-do not lift the ceiling. The cross-encoder is the right tool for any
-additional headroom; consumers with more training data than ours should
-focus that data on the joint-encoder side.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/fig5_data_efficiency.pdf}
-  \caption{Bi-encoder (\texttt{method\_v2\_full}) Hits@1 on each test
-    split as a function of training-pair count (log-x). The curve
-    saturates well before 100\% of available data, supporting that
-    additional positives are not the bottleneck.}
-  \label{fig:dataeff}
-\end{figure}
-
-\subsection{Cross-dataset transfer to external ER benchmark}
-\label{ssec:transfer}
-
-A natural reviewer question is whether the v2 cross-encoder learns
-something specific to lifecycle-spanning company-name matching, or just
-generic entity matching that happens to transfer. We zero-shot apply
-the saved cross-encoder (trained on GLEIF positives + v2 hard negs) to
-\textbf{Magellan Walmart-Amazon} (Mudgal et al.~\cite{deepmatcher2018}),
-a classic point-in-time product-matching benchmark in a fundamentally
-different domain (consumer-electronics products, not legal entities,
-with a different schema and different similarity signal). We compare
-against zero-shot E5-small-v2 cosine applied to the same pairs to
-isolate the contribution of the \textsc{TemporalLink} fine-tuning vs.\
-the base encoder.
-
-\begin{table}[t]
-  \centering
-  \small
-  \caption{Cross-dataset transfer on Magellan Walmart-Amazon
-    ($n = 2{,}049$ test pairs, $193$ positives). Threshold tuned on the
-    corresponding train file. \textbf{Honest negative result:} our
-    cross-encoder under-performs zero-shot E5 on this out-of-domain task,
-    indicating it has specialized to lifecycle-spanning company-name
-    matching at the cost of generic ER transferability.}
-  \label{tab:transfer_wa}
-  \begin{tabular}{l rrr}
-    \toprule
-    Method & AUROC & AUPRC & F1@$\tau^*$ \\
-    \midrule
-    zero-shot E5-small-v2 cosine                       & \textbf{0.853} & \textbf{0.514} & \textbf{0.483} \\
-    \texttt{method\_v2\_crossenc} L-6 (zero-shot)     & 0.794 & 0.302 & 0.364 \\
-    \texttt{method\_v2\_crossenc} L-12 (zero-shot)    & 0.774 & 0.338 & 0.374 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-The result is unambiguous: our \textsc{TemporalLink}-trained
-cross-encoder \emph{loses} to zero-shot E5 on Walmart-Amazon by 5.9\,pp
-AUROC and 11.9\,pp F1. We read this two ways. (1) The cross-encoder has
-learned a representation that is genuinely specialized to lifecycle ER
-on legal-entity name strings, not a generic ER capability; consumers
-working in different ER domains (product matching, biomedical, etc.)
-should retrain rather than use our checkpoint zero-shot. (2) The
-specialization comes at a cost: our model is worse than its own base
-encoder on adjacent tasks. For deployment in a single domain
-this is fine; for a general-purpose ER service it is a real limitation.
-We flag this as the most honest qualifier on the headline numbers and
-do not claim general-domain transferability.
-
-\subsection{Comparison to existing benchmarks}
-\label{ssec:comparison_section}
-
-\begin{table*}[t]
-  \centering
-  \footnotesize
-  \caption{Comparison of \textsc{TemporalLink} to representative open
-    entity-resolution / entity-linking benchmarks. The axis
-    \textsc{TemporalLink} adds is \emph{lifecycle-spanning}: positives
-    are pairs that bridge a documented lifecycle event, not point-in-
-    time duplicates.}
-  \label{tab:vs_benchmarks}
-  \begin{tabular}{l l l l l c c}
-    \toprule
-    Benchmark & Year & Size & Sources & Splits & Lifecycle? & Multiling.? \\
-    \midrule
-    \textbf{\textsc{TemporalLink} (ours)} & 2026 & 125K (217K v3) & GLEIF + EDGAR + Wikidata & time / event / juris & \textbf{Yes} & Yes (120) \\
-    TempEL~\cite{tempel2022}              & 2022 & $\sim$150K mentions & Wikipedia snapshots      & 10 yearly slices       & No (KB link) & English \\
-    OpenSanctions Pairs~\cite{opensanctions2026} & 2025 & 755K pairs & OpenSanctions (293 srcs) & label-stratified       & Partial      & Yes \\
-    Magellan~\cite{deepmatcher2018}       & 2018 & 13 dsets, 0.5--112K & Walmart-Amazon, etc.   & 3:1:1 random           & No           & English \\
-    WDC Products~\cite{wdcproducts2024}   & 2024 & 2.2K prods, 11.7K offers & schema.org crawl  & 27-var factorial       & No           & Yes \\
-    Ditto-WDC~\cite{ditto2020}            & 2020 & WDC, up to 214K  & WDC products            & random                 & No           & Yes \\
-    \bottomrule
-  \end{tabular}
-\end{table*}
+\bibliographystyle{ACM-Reference-Format}
 \bibliography{refs}
 
 \end{document}
