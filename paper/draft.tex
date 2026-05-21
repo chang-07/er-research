@@ -64,8 +64,9 @@ $<$2\% on the confident subset). An honest out-of-domain transfer
 test (Magellan Walmart-Amazon) shows our cross-encoder \emph{loses}
 to its own base encoder by 5.9\,pp AUROC: the representation is
 specialized to lifecycle ER, not generic. Code, splits, Croissant
-metadata, and predictions released; full pipeline reproduces on a
-single MacBook in $\approx$1 hour.
+metadata, and predictions released; full pipeline (benchmark, both
+methods, miner-robustness experiment, v10 ensemble) reproduces on a
+single MacBook in $\sim$2 hours.
 \end{abstract}
 
 \keywords{entity resolution, record linkage, financial entities,
@@ -115,6 +116,13 @@ any lifecycle event that may have occurred between them?}
         ($\pm$2.2/2.4/8.8\,pp bootstrap CIs), +24--35\,pp over the
         best bi-encoder, AUROC 0.83--0.87 (vs.\ $<$0.5 for any
         similarity method). Both reproducible on Apple MPS, no GPU.
+  \item \textbf{Prompt and ensemble extensions} (Section~\ref{ssec:main}):
+        GLEIF Level-2 parent/subsidiary names, country expansion, an
+        L-6$\times$L-12 score ensemble, and 259 extra Wikidata-LEI
+        positives raise Hits@1 a further $+9.4 / +11.2 / +3.4$\,pp to
+        70.0 / 67.7 / 78.4\%. Negative finding: symmetric score
+        averaging hurts $-9$\,pp JURIS, evidence the cross-encoder is
+        strongly directional.
   \item \textbf{A miner-robustness experiment}
         (Section~\ref{ssec:robustness}) re-mines hard negatives with
         a structurally orthogonal signal (char-3gram TF-IDF cosine) and
@@ -134,14 +142,10 @@ any lifecycle event that may have occurred between them?}
 \end{enumerate}
 \par}
 
-Our headline method --- a 22M-parameter cross-encoder fine-tuned on the
-benchmark's positives and v2 hard negatives --- reaches 60--75\% Hits@1
-across the three split regimes ($\pm$2.2/2.4/8.8\,pp bootstrap CIs), a
-24--35\,pp improvement over the best bi-encoder and 32--40\,pp above the
-strongest zero-shot baseline. The benchmark, both methods, the
-miner-robustness experiment, ablations, and all evaluation infrastructure
-compile end-to-end in roughly one hour on a single MacBook --- no GPU and
-no proprietary data access required.
+The full pipeline (benchmark build, both methods, miner-robustness
+experiment, v10 ensemble, all ablations and evaluation infrastructure)
+reproduces end-to-end on a single MacBook in $\sim$2 hours --- no GPU
+and no proprietary data access required.
 
 \section{Related Work}
 
@@ -398,28 +402,31 @@ classification framing; and the train-tuned F1 at the F1-optimal threshold.
 
 Table~\ref{tab:main_results} reports test-set metrics across the three
 split regimes for all baselines and method variants on the v2 evaluation
-pool (\texttt{pairs.parquet}). Headline cross-encoder Hits@1 95\%
-bootstrap confidence intervals are $\pm$2.2\,pp (TIME), $\pm$2.4\,pp
-(EVENT), and $\pm$8.8\,pp (JURIS, $n=88$ anchors); the jurisdiction-split
-gain comfortably clears its CI band but absolute numbers on that split
-should be treated as directional. Section~\ref{ssec:robustness} retests
-the headline cross-encoder on a structurally different candidate pool
-and finds that the gap shrinks but remains substantial.
-Figure~\ref{fig:main} visualizes the table.
+pool (\texttt{pairs.parquet}); Figure~\ref{fig:main} bars the same
+numbers. Headline cross-encoder Hits@1 95\% bootstrap confidence
+intervals are $\pm$2.2\,pp (TIME), $\pm$2.4\,pp (EVENT), and $\pm$8.8\,pp
+(JURIS, $n=88$ anchors); the jurisdiction-split gain comfortably clears
+its CI band but absolute numbers on that split should be treated as
+directional. Section~\ref{ssec:robustness} retests the headline
+cross-encoder on a structurally different candidate pool and finds the
+gap shrinks but remains substantial; Table~\ref{tab:v7} and
+Figure~\ref{fig:cum_gains} extend the L-6 cross-encoder to the v10
+ensemble (the actual best per column, see below).
 
 \begin{table*}[t]
   \centering
   \small
   \caption{Test-set metrics on the three split regimes (v2 evaluation
-    pool). Bold = best per column. Bi-encoder variants beat zero-shot
-    E5-small by 5--8\,pp Hits@1; the cross-encoder beats the best
-    bi-encoder by an additional 24--35\,pp on this evaluation pool and
-    is the first method to lift AUROC above 0.5 on the time and event
-    splits. See Table~\ref{tab:robustness} for the same cross-encoder
-    evaluated on an alternative miner's candidate pool. 95\% bootstrap
-    CIs on Hits@1 for the cross-encoder cells are
-    $\pm$2.2 / $\pm$2.4 / $\pm$8.8\,pp on time / event / jurisdiction
-    respectively.}
+    pool). Bold = best within the baseline + cross-encoder blocks shown
+    here; the v10 ensemble (Table~\ref{tab:v7}) is the overall best.
+    Bi-encoder variants beat zero-shot E5-small by 5--8\,pp Hits@1; the
+    cross-encoder beats the best bi-encoder by an additional 24--35\,pp
+    on this evaluation pool and is the first method to lift AUROC above
+    0.5 on the time and event splits. See Table~\ref{tab:robustness}
+    for the same cross-encoder evaluated on an alternative miner's
+    candidate pool. 95\% bootstrap CIs on Hits@1 for the cross-encoder
+    cells are $\pm$2.2 / $\pm$2.4 / $\pm$8.8\,pp on time / event /
+    jurisdiction respectively.}
   \label{tab:main_results}
   \begin{tabular}{l rrrrr rrrrr rrrrr}
     \toprule
@@ -514,9 +521,11 @@ problem more parameters fix.
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.92\linewidth]{figures/fig2_main_results.pdf}
-  \caption{Hits@1 (per-anchor retrieval, test set) across all baselines and
-    method variants for the three held-out split regimes. The fine-tuned
-    bi-encoder method beats zero-shot E5-small by 5--8 pp on every split.}
+  \caption{Hits@1 (per-anchor retrieval, test set) across all baselines
+    and method variants for the three held-out split regimes; bars
+    correspond to Table~\ref{tab:main_results}. Bi-encoders beat
+    zero-shot E5-small by 5--8\,pp; the v2 cross-encoder lifts another
+    24--35\,pp. Figure~\ref{fig:cum_gains} shows the further v10 gain.}
   \label{fig:main}
 \end{figure}
 
@@ -778,24 +787,28 @@ cannot reliably tell a real successor link from two distinct entities
 sharing an exact normalized name in the same country.
 
 The cross-encoder breaks that wall: \texttt{same\_name\_same\_country}
-mean score drops from 0.90 (best bi-encoder) to 0.45. It also nearly
-solves \texttt{same\_name\_diff\_country} (0.92 zero-shot $\to$ 0.24)
-and \texttt{token\_overlap\_same\_country} (0.91 $\to$ 0.28). The one
+mean score drops from 0.90 (best bi-encoder) to 0.45, and the v10
+ensemble drops it further to 0.34. v10 also nearly solves
+\texttt{same\_name\_diff\_country} (0.92 zero-shot $\to$ 0.16) and
+\texttt{token\_overlap\_same\_country} (0.91 $\to$ 0.25). The one
 regression is \texttt{parent\_subsidiary} (0.45 bi-encoder $\to$ 0.70
-cross-encoder): the joint encoder occasionally treats parent--subsidiary
-edges as positive lifecycle bridges, which they are not in our labeling.
-With only 221 examples in this class, the impact on headline numbers is
-small, but it points at a clean v3 target: explicit modeling of
-corporate-hierarchy relationships as a separate class.
+v2 cross-encoder $\to$ 0.78 v10): the joint encoder occasionally
+treats parent--subsidiary edges as positive lifecycle bridges, and the
+v10 prompt enrichment that injects GLEIF L2 parent/child names makes
+the regression \emph{worse}, not better. With only 221 examples in
+this class the headline impact is small, but the trend points at a
+clean v3 target: explicit multi-class modeling of corporate-hierarchy
+relationships.
 
 \begin{table}[t]
   \centering
   \scriptsize
-  \caption{Negative-class mean score (lower is better). Columns:
-    \emph{p/s} = parent/subsidiary, \emph{sn-D} = same-name diff-country,
-    \emph{sn-S} = same-name same-country, \emph{tok} = token-overlap
-    same-country. The cross-encoder is the first method to bring
-    \emph{sn-S} below 0.5.}
+  \caption{Negative-class mean score (lower is better). \emph{p/s}
+    = parent/subsidiary, \emph{sn-D} / \emph{sn-S} = same-name diff /
+    same-country, \emph{tok} = token-overlap same-country. v10
+    improves three classes but \emph{worsens} \emph{p/s} ($0.70 \to
+    0.78$) --- prompt-injected L2 context makes parent/subsidiary
+    pairs look more similar, not less.}
   \label{tab:neg_class}
   \begin{tabular}{l rrrr}
     \toprule
@@ -806,10 +819,9 @@ corporate-hierarchy relationships as a separate class.
     \texttt{tfidf\_char}             & 0.227 & 0.630 & 0.804 & 0.590 \\
     \texttt{sentence\_encoder}       & 0.834 & 0.921 & 0.963 & 0.905 \\
     \texttt{method\_full}            & 0.454 & 0.454 & 0.899 & 0.736 \\
-    \texttt{method\_no\_state}       & 0.390 & 0.536 & 0.888 & 0.690 \\
-    \texttt{method\_no\_hard}        & 0.452 & 0.463 & 0.897 & 0.729 \\
     \texttt{method\_v2\_full}        & 0.457 & 0.464 & 0.899 & 0.736 \\
-    \textbf{\texttt{method\_v2\_crossenc}} & 0.696 & \textbf{0.237} & \textbf{0.452} & \textbf{0.278} \\
+    \texttt{method\_v2\_crossenc}    & 0.696 & 0.237 & 0.452 & 0.278 \\
+    \textbf{\texttt{v10 ensemble}}   & 0.781 & \textbf{0.160} & \textbf{0.345} & \textbf{0.254} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -864,7 +876,8 @@ address both.
 
 The benchmark targets a workflow primitive shared by every fintech
 infrastructure company we are aware of: Stripe trains merchant
-embeddings and fights AI-driven rebranding fraud; Ramp performs
+embeddings~\cite{stripe_ai} and fights AI-driven rebranding
+fraud~\cite{stripe_lp_fraud}; Ramp performs
 vendor deduplication across $\sim$27M spreadsheet cells in its
 agentic-accounting product~\cite{finch2025}; Bloomberg's entity
 backbone underpins both its NLP work and the Quant Research
@@ -879,7 +892,7 @@ against.
 \section{Limitations and Future Work}
 \label{sec:limitations}
 
-We discuss five major limitations here; the released code includes
+We discuss six major limitations here; the released code includes
 additional analyses (cost/latency, calibration curves, error taxonomy,
 label-quality check) for the interested reader.
 
@@ -941,7 +954,8 @@ multi-class modeling of related-but-distinct entities is a v3 target.
 
 We introduced \textsc{TemporalLink}, the first open benchmark for
 lifecycle-aware ER on financial entities, built end-to-end from
-public data in seven minutes of compute. The benchmark exhibits a
+public data in $\sim$7 minutes (benchmark only; full pipeline
+including v10 ensemble, $\sim$2 hours). The benchmark exhibits a
 structural anti-correlation between name similarity and lifecycle
 linkage --- a property of its hard-negative construction, not a
 universal law --- that breaks every name-based baseline. A 33M
@@ -959,10 +973,10 @@ pool.
 
 \paragraph{Reproducibility.} All code, parsers, prediction artifacts,
 trained model weights, and the miner-robustness experiment are released
-at \url{https://github.com/chang-07/er-research}. The benchmark, both
-methods, and the v3 robustness experiment can be reproduced end-to-end
-on a single MacBook laptop in approximately one hour from the raw GLEIF
-XML.
+at \url{https://github.com/chang-07/er-research}. End-to-end pipeline
+reproduction from the raw GLEIF XML --- benchmark, both methods, v3
+robustness, and the v10 ensemble --- takes $\sim$2 hours on a single
+MacBook laptop.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{refs}

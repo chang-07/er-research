@@ -124,6 +124,12 @@ def main():
 
     for pf in pred_files:
         baseline = os.path.basename(pf).replace(".parquet", "")
+        # Skip non-TemporalLink prediction files (e.g., Magellan transfer
+        # benchmarks that don't share the anchor_lei/candidate_lei schema).
+        schema_cols = set(pq.read_schema(pf).names)
+        if not {"anchor_lei", "candidate_lei", "score"}.issubset(schema_cols):
+            print(f"  SKIP {baseline}: schema doesn't match", file=sys.stderr)
+            continue
         preds = pq.read_table(pf, columns=["anchor_lei", "candidate_lei", "score"]).to_pandas()
         df = pairs.merge(preds, on=["anchor_lei", "candidate_lei"], how="left")
         miss = df["score"].isna().sum()
