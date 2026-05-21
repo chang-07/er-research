@@ -145,15 +145,16 @@ no proprietary data access required.
 
 \section{Related Work}
 
-\paragraph{Entity resolution and record linkage.} Classical ER and record
-linkage~\cite{fellegisunter1969} matches records by computing similarity over
-structured fields. Modern systems supplement this with learned representations
-(CompanyName2Vec~\cite{companyname2vec2022} for company-name-only
-matching) or pretrained encoders~\cite{tfidfopensance2025}. Most recently,
-OpenSanctions Pairs~\cite{opensanctions2026} benchmarks LLM-based pairwise
-matching at 755K-pair scale and shows that frontier models reach 99\% F1.
-These works share a common framing: matching is point-in-time. None test
-lifecycle-spanning matches as first-class evaluation.
+\paragraph{Entity resolution and record linkage.} Classical
+ER~\cite{fellegisunter1969} matches records via similarity over
+structured fields. Modern PLM cross-encoders on serialized records
+(GraLMatch~\cite{gralmatch2025}) and fine-tuned small LMs
+(AnyMatch~\cite{anymatch2024}, Peeters \&
+Bizer~\cite{peeters2024finetune}) are now standard; the
+OpenSanctions Pairs corpus~\cite{opensanctions2026} benchmarks LLM
+matching at 755K pairs. Named-only company matching is addressed
+by~\cite{companyname2vec2022,tfidfopensance2025}. All adopt a
+\emph{snapshot} framing, not lifecycle-spanning matches.
 
 \paragraph{Temporal entity linking.} TempEL~\cite{tempel2022} and
 CYCLE~\cite{cycle2024} introduce time-stratified evaluation for entity
@@ -169,12 +170,10 @@ filings (FinGraphEx~\cite{fingraphex2025}; FinReflectKG~\cite{finreflectkg2025})
 These works construct graphs at a single time slice; the lifecycle-bridge
 question is orthogonal.
 
-\paragraph{Financial time-series foundation models.} Concurrently, a wave
-of time-series foundation models has been proposed for financial forecasting
-(BForTFin~\cite{bortfin2025}, LENS/PLUTUS~\cite{plutus2024},
-Bloomberg's Delphyne~\cite{bloomberg_delphyne2025}). These address a
-different (but adjacent) problem in financial ML; we note them to delimit
-scope.
+\paragraph{Financial time-series foundation models.} Concurrent
+time-series FMs for financial forecasting (PLUTUS~\cite{plutus2024},
+Bloomberg's Delphyne~\cite{bloomberg_delphyne2025}) address a
+different (but adjacent) problem; we note them only to delimit scope.
 
 \section{The TemporalLink Benchmark}
 \label{sec:benchmark}
@@ -452,56 +451,56 @@ delivers the largest cumulative gain ($+9$ to $+11$\,pp), since the
 two backbones make complementary errors.
 
 \paragraph{Prompt-side and backbone extensions add $+9$ to $+11$\,pp Hits@1.}
-Four orthogonal modifications lift Hits@1 substantially over the
-headline. \textbf{(i)} \emph{Prompt enrichment} adds parent / up-to-2
-subsidiary names from GLEIF Level-2, legal-address city, entity
-creation year, country expansion via \texttt{pycountry}
-(\texttt{SG} $\to$ \texttt{SG (Singapore)}; US states via ISO-3166-2),
-\texttt{legal\_jurisdiction} when it differs from the address
-country, and \texttt{category} when non-default (FUND etc.).
-\textbf{(ii)} \emph{Wikidata-LEI bridge.} A second SPARQL pass uses
-P1278 (LEI) on both sides of P156 / P1366 / P7888 (followed-by /
-replaced-by / merged-into), recovering 259 cross-jurisdiction
-positives not in our GLEIF set.
-\textbf{(iii)} \emph{Multi-seed and multi-backbone ensembles.}
-Averaging sigmoid scores from three enriched L-6 models (seeds 42,
-7, 1337) is competitive; pairing an L-6 model with an L-12 model
-(60M params) trained on the same v5+v6 recipe is uniformly stronger.
-\textbf{(iv)} \emph{Negative finding.} Symmetric scoring (averaging
+Four orthogonal modifications lift Hits@1 over the headline.
+\textbf{(i)} \emph{Prompt enrichment} adds GLEIF L2 parent /
+up-to-2 subsidiary names, legal-address city, creation year,
+country expansion via \texttt{pycountry} (\texttt{SG} $\to$
+\texttt{SG (Singapore)}; US states via ISO-3166-2),
+\texttt{legal\_jurisdiction} when it differs from address country,
+and \texttt{category} when non-default (FUND etc.).
+\textbf{(ii)} \emph{Wikidata-LEI bridge}: SPARQL on P1278 (LEI) on
+both sides of P156 / P1366 / P7888, recovering 259 cross-jurisdiction
+positives not in GLEIF.
+\textbf{(iii)} \emph{Multi-seed and multi-backbone ensembles}:
+averaging three L-6 seeds is competitive; pairing an L-6 with an
+L-12 (60M) trained on the same recipe is uniformly stronger.
+\textbf{(iv)} \emph{Negative finding}: symmetric scoring (averaging
 $s(a,b)$ and $s(b,a)$) hurts $-0.9 / -1.9 / -9.1$\,pp, confirming
-the cross-encoder learns a strongly directional pred$\to$succ
-representation. The headline v10 (L-6 $\times$ L-12 ensemble of
-v8a-style models) reaches $\mathbf{0.700 / 0.677 / 0.784}$ Hits@1
-($+9.4 / +11.2 / +3.4$\,pp over the L-6 baseline;
-Table~\ref{tab:v7}). The single-model v8a (one L-6 with combined
-Wikidata data + enriched prompt) at $0.694 / 0.651 / 0.773$
-is within CI on EVENT/JURIS and gives a deployment-friendly
-alternative at $\sim$$3\times$ lower cost.
+a directional pred$\to$succ representation. Headline v10 reaches
+$\mathbf{0.700 / 0.677 / 0.784}$ Hits@1 ($+9.4 / +11.2 / +3.4$\,pp
+over L-6 baseline; Table~\ref{tab:v7}). Single-model v8a at
+$0.694 / 0.651 / 0.773$ matches within CI on EVENT/JURIS at $\sim$$3\times$ lower cost.
 
 \begin{table}[t]
-  \centering\small
+  \centering\footnotesize
+  \setlength{\tabcolsep}{3pt}
   \caption{Cross-encoder extensions, Hits@1 [95\% bootstrap CI].
-    Top block is L-6 (22M) backbone, bottom block adds L-12 (60M)
-    backbone and an L-6$\times$L-12 ensemble. Headline L-6 row
-    repeated from Table~\ref{tab:main_results} for reference.}
+    Headline L-6 row repeated from Table~\ref{tab:main_results};
+    intermediate variants (v5, v6, v7) plotted in
+    Figure~\ref{fig:cum_gains}.}
   \label{tab:v7}
-  \begin{tabular}{l c c c}
+  \begin{tabular}{@{}l c c c@{}}
     \toprule
     Model & TIME & EVENT & JURIS \\
     \midrule
-    Headline L-6                & 0.605 [.586,.627] & 0.564 [.542,.589] & 0.750 [.659,.830] \\
-    v4 enriched (s=42)          & 0.675 [.653,.697] & 0.641 [.620,.662] & 0.750 [.659,.830] \\
-    v4 ens.\ (3 seeds)          & 0.687 [.665,.710] & 0.645 [.627,.668] & 0.761 [.670,.852] \\
-    v5 + Wikidata-LEI           & 0.677 [.656,.695] & 0.643 [.623,.668] & 0.761 [.682,.841] \\
-    v6 + country/juris          & 0.678 [.657,.698] & 0.651 [.628,.675] & 0.750 [.659,.830] \\
-    v7 = avg(ens3, v5, v6)      & 0.692 [.670,.712] & 0.653 [.632,.675] & 0.773 [.682,.852] \\
-    v8a single (v5+v6 combined) & 0.694 [.669,.712] & 0.651 [.630,.673] & 0.773 [.682,.853] \\
-    \midrule
-    v8aL12 (L-12, v8a recipe)   & 0.697 [.678,.716] & 0.676 [.657,.697] & 0.761 [.670,.841] \\
-    \textbf{v10 = avg(v8a, v8aL12)} & \textbf{0.700 [.681,.718]} & \textbf{0.677 [.656,.700]} & \textbf{0.784 [.682,.864]} \\
+    Headline L-6 (22M)            & .605 [.586,.627] & .564 [.542,.589] & .750 [.659,.830] \\
+    v4 enriched (s=42)            & .675 [.653,.697] & .641 [.620,.662] & .750 [.659,.830] \\
+    v4 ens.\ (3 seeds)            & .687 [.665,.710] & .645 [.627,.668] & .761 [.670,.852] \\
+    v8a (v5+v6, L-6)              & .694 [.669,.712] & .651 [.630,.673] & .773 [.682,.853] \\
+    v8aL12 (v8a, L-12 60M)        & .697 [.678,.716] & .676 [.657,.697] & .761 [.670,.841] \\
+    \textbf{v10 = avg(v8a, v8aL12)} & \textbf{.700 [.681,.718]} & \textbf{.677 [.656,.700]} & \textbf{.784 [.682,.864]} \\
     \bottomrule
   \end{tabular}
 \end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.99\linewidth]{figures/fig6_cumulative_gains.pdf}
+  \caption{Cumulative Hits@1 progression from v2 to v10. Prompt
+    enrichment (v4) is the largest single jump on TIME / EVENT; the
+    L-12$\times$L-6 pairing (v10) captures the largest JURIS gain.}
+  \label{fig:cum_gains}
+\end{figure}
 
 \paragraph{Backbone size does not break the bi-encoder ceiling.}
 Scaling E5-small (33M) to E5-base (110M) leaves TIME/EVENT Hits@1
@@ -738,15 +737,19 @@ encoder-cosine mining, and complicates the common assumption in ER that
 
 We summarize four diagnostics released in the code repository
 (full tables and figures available there; we are page-limited here).
-\textbf{B-cubed cluster F1} on the test partition is 0.92 / 0.90 / 0.91
-for the cross-encoder vs.\ $\leq$0.47 for any bi-encoder (which
-collapses to one giant cluster at the tuned threshold); restricting
-to records in true clusters of size $\geq 2$ (64\% of test records
-are singletons) gives the honest cross-encoder F1 of 0.85 / 0.84 / 0.88.
-\textbf{Calibration:} cross-encoder Expected Calibration Error
-(10-bin) is 0.20, Brier 0.18 --- substantial over-confidence in
-high-score bins; consumers needing probabilities should apply
-temperature scaling. \textbf{Cross-domain transfer} (zero-shot
+\textbf{B-cubed cluster F1}~\cite{binette2024} on the test partition is
+0.92 / 0.90 / 0.91 for the cross-encoder vs.\ $\leq$0.47 for any
+bi-encoder (which collapses to one giant cluster at the tuned
+threshold); restricting to records in true clusters of size $\geq 2$
+(64\% of test records are singletons) gives the honest cross-encoder
+F1 of 0.85 / 0.84 / 0.88. \textbf{Calibration and selective
+prediction.} ECE (10-bin) is 0.20, Brier 0.18 --- over-confidence
+in high-score bins, consistent with recent calibration measurements
+on PLM-based EM~\cite{llmemcalib2025}. A selective-prediction sweep
+(in the sense of~\cite{geifman2017}) on v10 reaches Hits@1
+$\geq$0.94 at 20\% coverage and 0.87--0.97 at 50\% coverage across
+the three splits; consumers needing high precision can threshold on
+the calibrated score without retraining (curve in repo). \textbf{Cross-domain transfer} (zero-shot
 application to Magellan Walmart-Amazon) shows the cross-encoder
 \emph{loses} to its own zero-shot base encoder by 5.9\,pp AUROC,
 evidence the fine-tuned representation is specialized to
@@ -844,18 +847,16 @@ encoder is unlikely to memorize from name strings alone.
 \subsection{Why this matters in practice}
 
 The benchmark targets a workflow primitive shared by every fintech
-infrastructure company we are aware of. Stripe trains merchant
-embeddings~\cite{stripe_ai} and explicitly fights AI-driven
-merchant rebranding fraud~\cite{stripe_lp_fraud}. Ramp performs
+infrastructure company we are aware of: Stripe trains merchant
+embeddings and fights AI-driven rebranding fraud; Ramp performs
 vendor deduplication across $\sim$27M spreadsheet cells in its
-agentic-accounting product~\cite{finch2025}. Bloomberg's entity backbone
-underpins both its 400-person AI engineering organization's NLP work
-\cite{bloomberg_nlp_jobs} and the Quant Research group's Delphyne foundation
-model~\cite{bloomberg_delphyne2025}. Robinhood's Cortex assistant must
-reconcile tickers, CIKs, and corporate-action histories to answer
-investor questions across pre- and post-event entity references. Each of
-these teams reports lifecycle-ER failures as recurring operational pain
-points; \textsc{TemporalLink} gives them a public benchmark to evaluate
+agentic-accounting product~\cite{finch2025}; Bloomberg's entity
+backbone underpins both its NLP work and the Quant Research
+Delphyne foundation model~\cite{bloomberg_delphyne2025}; Robinhood's
+Cortex assistant reconciles tickers, CIKs, and corporate-action
+histories across pre- and post-event references. Each team reports
+lifecycle-ER failures as recurring operational pain points;
+\textsc{TemporalLink} gives them a public benchmark to evaluate
 against.
 
 
@@ -897,16 +898,9 @@ are pairs that ALSO appear in GLEIF's \texttt{SuccessorEntity}
 field; the mining-time filter missed them due to one-direction
 lookup. We provide a cleaned variant \texttt{pairs\_clean.parquet}
 that drops these; impact on the headline cross-encoder Hits@1 is
-$\leq$0.2\,pp on every split. Releases use the clean variant
-going forward. A small fraction of our hard
-negatives ($205/93{,}695 = 0.22\%$) are pairs that ALSO appear in
-GLEIF's \texttt{SuccessorEntity} field; the mining-time filter missed
-them due to one-direction lookup. We provide a cleaned variant
-\texttt{pairs\_clean.parquet} that drops these; impact on the
-headline cross-encoder Hits@1 is $\leq$0.2\,pp on every split (the
-cross-encoder mostly gets these right, which under-counts as
-false-positives in the dirty version). Releases will use the clean
-variant going forward.
+$\leq$0.2\,pp on every split (the cross-encoder mostly gets these
+right, which under-counts as false-positives in the dirty version).
+Releases will use the clean variant going forward.
 
 \paragraph{Reporting / survivorship bias + thin slices.} GLEIF
 \texttt{SuccessorEntity} is voluntarily populated, biasing positives
@@ -939,27 +933,22 @@ multi-class modeling of related-but-distinct entities is a v3 target.
 \section{Conclusion}
 
 We introduced \textsc{TemporalLink}, the first open benchmark for
-lifecycle-aware entity resolution on financial entities, assembled
-end-to-end from public data in seven minutes of compute. The benchmark
-exhibits a structural anti-correlation between name similarity and
-lifecycle linkage --- a property of its hard-negative construction,
-not a universal law --- that breaks every name-based baseline we
-tested. A 33M-parameter bi-encoder fine-tune lifts Hits@1 5--8\,pp
-over zero-shot E5-small; a 22M-parameter cross-encoder lifts it to
-60--75\% across splits (24--35\,pp over the best bi-encoder, AUROC
-0.83--0.87, the first method to escape the anti-correlation regime).
-Prompt-side enrichment, Wikidata-LEI data, and an L-6$\times$L-12
-backbone ensemble (\S\ref{ssec:main}) raise this to 70/68/78\% Hits@1. A miner-robustness re-mine with TF-IDF char n-grams
-shrinks the cross-encoder advantage 5--15\,pp but it stays $+13$ to
-$+38$\,pp across the $2{\times}2$ train/eval matrix, evidence the
-gap is partly in-distribution but not purely a within-miner artifact.
-Cluster-level B-cubed F1 confirms the cross-encoder advantage in the
-regime downstream deduplication consumers care about (0.90--0.92 vs.\
-$\leq$0.47 for any bi-encoder). We document ten honest limitations
-(\S\ref{sec:limitations}); natural v3 targets are a frontier-LLM
-baseline, an expanded held-out-jurisdiction pool, multi-class
-modeling of related-but-distinct entities, and candidate-pool
-evaluation drawn from a fielded retrieval system.
+lifecycle-aware ER on financial entities, built end-to-end from
+public data in seven minutes of compute. The benchmark exhibits a
+structural anti-correlation between name similarity and lifecycle
+linkage --- a property of its hard-negative construction, not a
+universal law --- that breaks every name-based baseline. A 33M
+bi-encoder lifts Hits@1 5--8\,pp over zero-shot E5-small; a 22M
+cross-encoder reaches 60--75\% across splits (AUROC 0.83--0.87, the
+first method to escape the anti-correlation regime). Prompt
+enrichment, Wikidata-LEI data, and an L-6$\times$L-12 backbone
+ensemble (\S\ref{ssec:main}) raise this to 70/68/78\%. Miner
+robustness retesting shrinks the advantage 5--15\,pp but keeps it
+$+13$ to $+38$\,pp across the $2{\times}2$ matrix; B-cubed F1 is
+0.90--0.92 vs.\ $\leq$0.47 for any bi-encoder. v3 targets: a
+frontier-LLM baseline, an expanded JURIS pool, multi-class modeling
+of related-but-distinct entities, and a fielded-retrieval candidate
+pool.
 
 \paragraph{Reproducibility.} All code, parsers, prediction artifacts,
 trained model weights, and the miner-robustness experiment are released
