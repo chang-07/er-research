@@ -44,8 +44,11 @@ entities").
 | `events.parquet` (per-LEI lifecycle events) | 1,170,716 |
 | `relationships.parquet` (Level-2 RR edges) | 473,839 |
 | `successor_links.parquet` (enriched + classified) | 33,652 |
-| `hard_negatives.parquet` (mined hard negatives) | 253,733 |
-| **`pairs.parquet` (the v1 evaluation dataset)** | **125,519** |
+| `hard_negatives.parquet` (v1 mined hard negatives) | 253,733 |
+| `hard_negatives_v2.parquet` (v2: E5-cosine; recommended for training) | 652,764 |
+| `hard_negatives_v3.parquet` (v3: TF-IDF char-3gram; for miner-robustness evaluation) | 652,680 |
+| **`pairs.parquet` (the v1/headline evaluation dataset)** | **125,519** |
+| `pairs_v3.parquet` (alternative evaluation pool with v3 negatives) | 217,957 |
 | &nbsp;&nbsp;&nbsp;&nbsp;of which positives (label=1) | 31,824 |
 | &nbsp;&nbsp;&nbsp;&nbsp;of which negatives (label=0) | 93,695 |
 | `wikidata_marquee.parquet` (qualitative supplement) | 3,590 |
@@ -243,14 +246,24 @@ No errata at v1 release. Updates will be tracked in the GitHub
 repository's `CHANGELOG.md` and on Hugging Face.
 
 **Will the dataset be updated?**
-We anticipate a v2 release that:
-- Re-mines hard negatives using sentence-encoder cosine (instead of the
-  current token-overlap fallback) to reduce label noise.
-- Adds EDGAR 8-K Item 5.03 supplementary positives for US public
-  companies.
-- Extends to more jurisdictions in the held-out-jurisdiction split.
-- Pulls historical GLEIF snapshots to materialize identity positives
-  (same entity at different times, no lifecycle event between).
+v2 and v3 additions have already shipped alongside v1:
+- **v2** (`data/hard_negatives_v2.parquet`): re-mines the dominant
+  same-country hard-negative class using sentence-encoder (E5-small)
+  cosine, reducing label noise from the v1 token-overlap fallback.
+  Cross-encoder training uses v2 negatives.
+- **v3** (`data/hard_negatives_v3.parquet`, `data/pairs_v3.parquet`):
+  alternative hard-negative pool from char-3gram TF-IDF cosine ---
+  structurally orthogonal to v2 (no learned representation, no shared
+  parameters with E5). Used for miner-robustness evaluation; consumers
+  can use either pool depending on which similarity-signal they want
+  the benchmark to test against.
+
+Future planned additions (not yet shipped):
+- EDGAR 8-K Item 5.03 supplementary positives for US public companies.
+- Expanded held-out-jurisdiction split (current SG/JP/BR pool is thin
+  at n=88 anchors; planned to add KR, MX, AR, CL, ID).
+- Historical GLEIF snapshots to materialize identity positives (same
+  entity at different times, no lifecycle event between).
 
 **If the dataset relates to people, are there applicable limits on the
 retention of the data associated with the instances?**

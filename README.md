@@ -27,7 +27,11 @@ sources required.
 - [x] Method (v1): lifecycle-aware bi-encoder fine-tuned on E5-small with state features + hard negatives. **+5–8 pp Hits@1 over zero-shot E5 across all splits.** Two ablations run. `src/method/train.py`
 - [x] Paper draft + datasheet + figures (Phase 4): `paper/draft.tex`, `paper/datasheet.md`, `paper/figures/*.pdf`. ~9 pages, Gebru-template datasheet appendix.
 - [x] **v2 integration:** E5-cosine hard-neg re-mining (`src/benchmark/mine_hard_negatives_v2.py`), transitive successor positives (`src/benchmark/transitive_positives.py`), v2 bi-encoder retrain, and a fine-tuned cross-encoder (`src/method/train_cross_encoder.py`). **Cross-encoder lifts Hits@1 to 0.605 / 0.564 / 0.750 on the three splits — +24-35 pp over the best bi-encoder, and the first method to break AUROC > 0.5 on the time/event splits.**
+- [x] **v3 miner-robustness experiment:** alternative hard-neg pool from char-3gram TF-IDF cosine (`src/benchmark/mine_hard_negatives_v3.py`), parallel pairs file (`data/pairs_v3.parquet`), cross-encoders trained and evaluated in a 2x2 train/eval matrix (`src/method/train_cross_encoder.py` + `src/eval/compare_distributions.py`). **Cross-encoder gain shrinks 5-15 pp under out-of-distribution candidate-pool shift but stays +13 to +38 pp above baselines across all six cells — gap is partly in-distribution but not purely a within-miner artifact.**
+- [x] **Statistical rigor:** bootstrap 95% CIs on Hits@1 added to `src/eval/evaluate.py`; jurisdiction split's headline number (n=88 anchors) reported with ±8.8 pp CI band so it isn't over-interpreted.
+- [x] **Path-aware transitive-positive filter:** `transitive_positives.py` now emits `intermediate_leis`; both `train.py` and `train_cross_encoder.py` reject transitive (A,C) positives whose chain crosses a train/test boundary.
 - [ ] HF Datasets release (manual upload after paper submission).
+- [ ] LLM-pairwise baseline (~$2 for 5% Haiku sample; biggest remaining experimental gap)
 - [ ] Method v3: explicit modeling of parent/subsidiary edges (the one negative class the cross-encoder regressed on); possibly bigger backbones (E5-large / BGE-large) with GPU.
 - [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
 - [ ] Write-up + arXiv preprint
@@ -111,7 +115,8 @@ leakage. Default device is Apple MPS if available, else CUDA, else CPU.
 # v2 hard-neg re-mining via E5 cosine (~7 min on Apple MPS)
 python3 src/benchmark/mine_hard_negatives_v2.py --data data/
 
-# transitive successor-chain positives (~3 s)
+# transitive successor-chain positives (~3 s, includes intermediate_leis
+# for path-aware leakage filtering downstream)
 python3 src/benchmark/transitive_positives.py --data data/
 
 # v2 bi-encoder retrain (~7 min)
@@ -120,8 +125,90 @@ python3 src/method/train.py --variant v2_full --data data/
 # v2 cross-encoder fine-tune (~10 min train + 7 min scoring on MPS)
 python3 src/method/train_cross_encoder.py --data data/
 
-# eval (combines v1 + v2 numbers in one table)
+# eval (with bootstrap 95% CIs on Hits@1)
 python3 src/eval/evaluate.py --data data/
+```
+
+## v3 miner-robustness experiment
+
+Tests whether the cross-encoder's headline gain depends on the choice of
+hard-negative miner used to build the evaluation candidate pool. v3 uses
+char-3gram TF-IDF cosine (no learned representation, no shared parameters
+with E5) to mine an alternative pool, then trains a second cross-encoder
+on it. Both cross-encoders are scored on both pools, yielding a 2x2
+train/eval matrix.
+
+```bash
+# 1. mine alternative hard negatives (TF-IDF char-3gram, ~20 s CPU)
+python3 src/benchmark/mine_hard_negatives_v3.py --data data/
+
+# 2. assemble alternative pairs file with the new negs
+python3 src/benchmark/build_splits.py --data data/ \
+    --hard-negs hard_negatives_v3.parquet --out-name pairs_v3.parquet
+
+# 3. score the existing baselines on the v3 pool
+python3 src/baselines/cheap.py --data data/ \
+    --pairs pairs_v3.parquet --suffix _v3
+python3 src/baselines/encoder.py --data data/ \
+    --pairs pairs_v3.parquet --name sentence_encoder_v3
+
+# 4. retrain the cross-encoder on v2 negs and score on both pools (~17 min)
+python3 src/method/train_cross_encoder.py --data data/ \
+    --hard-negs hard_negatives_v2.parquet --train-pairs pairs.parquet \
+    --extra-pairs pairs_v3.parquet --out-name method_v2_crossenc_repro
+
+# 5. train a second cross-encoder on v3 negs and score on both pools (~20 min)
+python3 src/method/train_cross_encoder.py --data data/ \
+    --hard-negs hard_negatives_v3.parquet --train-pairs pairs_v3.parquet \
+    --extra-pairs pairs.parquet --out-name method_v3_crossenc
+
+# 6. compute and print the comparison + bootstrap CIs
+python3 src/eval/compare_distributions.py --data data/ --skip-ci
+python3 src/eval/compute_robustness_cis.py
+```
+
+## Additional diagnostics (Phase v3.5)
+
+```bash
+# Cost & latency table per method (CPU timing + LLM list prices)
+python3 src/eval/cost_latency.py
+
+# Reliability diagram + ECE/Brier on cross-encoder
+python3 src/eval/calibration.py
+
+# B-cubed cluster precision/recall (Binette 2024 style)
+python3 src/eval/cluster_metrics.py
+
+# Named error taxonomy on cross-encoder failures (50 per split)
+python3 src/eval/error_taxonomy.py
+
+# Secondary auto-classifier label-quality check (label-noise lower bound)
+python3 src/eval/human_validation.py --data data --n 300        # sample
+python3 src/eval/secondary_label_check.py                        # label heuristically
+python3 src/eval/human_validation.py --data data --report        # report agreement
+
+# Cross-dataset transfer (run trained CE on Magellan Walmart-Amazon)
+python3 src/method/score_external.py \
+    --model-dir data/models/method_v2_crossenc_saved \
+    --test-file /tmp/magellan/walmart_amazon_test.txt \
+    --train-file /tmp/magellan/walmart_amazon_train.txt \
+    --out data/predictions/method_v2_crossenc_on_walmart_amazon.parquet
+
+# Larger backbones (E5-base bi-encoder + MiniLM-L-12 cross-encoder)
+python3 src/method/train.py --data data --variant v2_full \
+    --base-model intfloat/e5-base-v2 --out-name method_v2_full_e5base
+python3 src/method/train_cross_encoder.py --data data \
+    --hard-negs hard_negatives_v2.parquet --train-pairs pairs.parquet \
+    --base-model cross-encoder/ms-marco-MiniLM-L-12-v2 \
+    --out-name method_v2_crossenc_L12
+
+# Data-efficiency scaling curve (bi-encoder retrains at 10/25/50/75/100% data)
+bash src/method/run_data_efficiency.sh
+python3 src/eval/data_efficiency.py
+
+# One-shot wrapper that runs cross-dataset transfer + L-12 + data-efficiency
+# in sequence after a saved v2 cross-encoder checkpoint exists
+bash src/method/chained_compute.sh
 ```
 
 ## Paper draft
