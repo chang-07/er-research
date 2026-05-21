@@ -22,6 +22,7 @@ PREDICTION_FILES = [
     "exact_name", "token_set", "tfidf_char", "sentence_encoder",
     "method_full", "method_no_state", "method_no_hard",
     "method_v2_full", "method_v2_crossenc",
+    "method_v10_L6xL12",
 ]
 SPLITS_TO_REPORT = ["split_time", "split_event", "split_jurisdiction"]
 

@@ -350,7 +350,9 @@ emits a single relevance logit. We fine-tune
 positive set (including transitives) plus a 4:1 sample of v2 hard negatives
 per positive, treating positives as label $1.0$ and negatives as label $0.0$.
 Loss: standard binary cross-entropy on the logit. 2 epochs, batch 32, lr
-$2\times 10^{-5}$, 100 warmup steps.
+$2\times 10^{-5}$, 100 warmup steps. v4--v10 extensions
+(\S\ref{ssec:main}) hold architecture/optimizer constant and modify only
+the serialized text, the training positives, and the backbone.
 
 \paragraph{Inference cost.} Scoring all 125{,}519 pairs in the benchmark
 takes $\approx$80 seconds on MPS. In a deployed retrieval pipeline the
@@ -561,15 +563,17 @@ We break down Hits@1 by anchor event type on \emph{both} the held-out-time
 split and the held-out-event split. Two messages emerge.
 
 \paragraph{On the held-out-time split (Figure~\ref{fig:per_event}),
-the cross-encoder's gain is concentrated in the operationally hard events.}
-Pure renames (\texttt{CHANGE\_LEGAL\_NAME}, $n=10$ in test) are essentially
-solved by every method including zero-shot E5-small (0.90 Hits@1, no
-cross-encoder lift). The headline cross-encoder gain comes from
-\texttt{MERGERS\_AND\_ACQUISITIONS} ($n=1{,}506$: 0.18 zero-shot $\to$
-0.62 cross-encoder, +44\,pp) and \texttt{ABSORPTION} ($n=461$: 0.23
-$\to$ 0.53, +30\,pp), the cases where the post-event name comes from
-the acquirer rather than from the target and pure name similarity is
-structurally unable to bridge the gap.
+the cross-encoder's gain is concentrated in the operationally hard
+events.} Pure renames (\texttt{CHANGE\_LEGAL\_NAME}, $n=10$) are
+essentially solved by every method including zero-shot E5-small
+(0.90 Hits@1, no lift). The headline gains come from
+\texttt{MERGERS\_AND\_ACQUISITIONS} ($n=1{,}506$: 0.18 zero-shot
+$\to$ 0.62 v2 $\to$ 0.71 v10) and \texttt{ABSORPTION} ($n=461$:
+0.23 $\to$ 0.53 $\to$ 0.65), the cases where the post-event name
+comes from the acquirer rather than the target and pure name
+similarity is structurally unable to bridge the gap. v10 also more
+than doubles zero-shot on the small but operationally critical
+\texttt{BREAKUP} subset ($n=7$: 0.14 $\to$ 0.71).
 
 \paragraph{On the held-out-event split, ``held-out event type'' really
 means ``held-out absorption.''} The held-out-event test set is 94.7\%
@@ -587,11 +591,13 @@ spinoffs.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.92\linewidth]{figures/fig3_per_event_type.pdf}
-  \caption{Per-event-type Hits@1 on the held-out-time test split (zero-shot
-    E5 vs.\ best fine-tune in our prior work). Pure legal-name changes are
-    nearly solved by every method; mergers and absorptions are where the
-    cross-encoder lift is concentrated.}
+  \includegraphics[width=0.99\linewidth]{figures/fig3_per_event_type.pdf}
+  \caption{Per-event-type Hits@1 on the held-out-time test split:
+    zero-shot E5-small vs.\ the v2 cross-encoder vs.\ the v10
+    L-6$\times$L-12 ensemble. Pure legal-name changes ($n=10$) are
+    nearly solved by every method; M\&A and absorption events are
+    where the v10 ensemble's gains over v2 are most concentrated
+    ($+9$\,pp and $+12$\,pp respectively).}
   \label{fig:per_event}
 \end{figure}
 
@@ -844,6 +850,16 @@ Bank disambiguation requires recognizing ``DB'' as a known abbreviation
 for ``Deutsche Bank'' --- an external knowledge fact a 33M-parameter
 encoder is unlikely to memorize from name strings alone.
 
+\paragraph{v10 residual JURIS failures cluster on sibling
+consolidation.} Of the 20 / 161 anchors v10 mis-ranks on JURIS,
+$\geq$11 are sibling consolidations (e.g., 9 ``\texttt{EPIC <port>
+PTE.\ LTD.}'' Singapore ships into \texttt{BW EPIC KOSAN VESSELS
+ONE}; the model returns sibling \texttt{EPIC} vessels); a second
+cluster is Japanese-script name changes the ASCII tokenizer cannot
+bridge (Daiwa-Sumigin $\to$ Mitsui-Sumitomo DS). An LLM with
+multilingual pretraining and ownership-graph context would
+address both.
+
 \subsection{Why this matters in practice}
 
 The benchmark targets a workflow primitive shared by every fintech
@@ -884,23 +900,14 @@ held-out candidate pool (e.g., a deployment-time retriever) would be
 a stronger test that we leave to future work.
 
 \paragraph{Seed variance and a small hard-negative label noise.}
-Headline numbers in Table~\ref{tab:main_results} use seed 42. To bound
-single-seed variance we retrained \texttt{method\_v2\_full} at seeds
-7 and 1337 as well. Across the three seeds, Hits@1 means $\pm$ std
-were $0.251 \pm 0.005$ (TIME), $0.291 \pm 0.004$ (EVENT), and
-$0.523 \pm 0.016$ (JURIS). TIME and EVENT are highly stable across
-seeds ($\pm 0.5$\,pp); JURIS varies more ($\pm$1.6\,pp std, range
-3.4\,pp), consistent with its small test sample ($n = 88$ anchors)
-and its wider bootstrap CI of $\sim$$\pm$7.5\,pp. Cross-encoder
-multi-seed retraining is left to a future revision. Separately,
-a small fraction of our hard negatives ($205/93{,}695 = 0.22\%$)
-are pairs that ALSO appear in GLEIF's \texttt{SuccessorEntity}
-field; the mining-time filter missed them due to one-direction
-lookup. We provide a cleaned variant \texttt{pairs\_clean.parquet}
-that drops these; impact on the headline cross-encoder Hits@1 is
-$\leq$0.2\,pp on every split (the cross-encoder mostly gets these
-right, which under-counts as false-positives in the dirty version).
-Releases will use the clean variant going forward.
+Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
+(TIME), $0.291 \pm 0.004$ (EVENT), $0.523 \pm 0.016$ (JURIS);
+TIME/EVENT are stable, JURIS varies $\pm$1.6\,pp consistent with
+its small test sample ($n = 88$). Cross-encoder multi-seed
+retraining (v4 ensemble, Table~\ref{tab:v7}) shows similar
+behaviour. Separately, $205/93{,}695 = 0.22\%$ of hard negatives
+appear in GLEIF's \texttt{SuccessorEntity}; the cleaned variant
+\texttt{pairs\_clean.parquet} drops them with $\leq$0.2\,pp impact.
 
 \paragraph{Reporting / survivorship bias + thin slices.} GLEIF
 \texttt{SuccessorEntity} is voluntarily populated, biasing positives

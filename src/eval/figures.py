@@ -39,7 +39,8 @@ PRETTY = {
     "method_no_hard":     "method (no hard negs)",
     "method_full":        "method (full)",
     "method_v2_full":     "method v2 (bi)",
-    "method_v2_crossenc": "method v2 (cross)",
+    "method_v2_crossenc": "v2 cross-enc (L-6)",
+    "method_v10_L6xL12":  "v10 (L-6 x L-12 ens.)",
 }
 SPLIT_PRETTY = {
     "split_time": "Held-out time",
@@ -122,9 +123,11 @@ def fig3_per_event_type(data_dir, out_dir):
     # Pick the most populous event types
     n_per = pet.groupby("event_type")["n_anchors"].first().sort_values(ascending=False)
     top_types = list(n_per.head(5).index)
-    keep_baselines = ["sentence_encoder", "method_full",
-                       "method_v2_full", "method_v2_crossenc"]
-    sub = pet[pet["event_type"].isin(top_types) & pet["baseline"].isin(keep_baselines)]
+    keep_baselines = ["sentence_encoder", "method_v2_crossenc",
+                       "method_v10_L6xL12"]
+    sub = pet[(pet["event_type"].isin(top_types))
+               & (pet["baseline"].isin(keep_baselines))
+               & (pet["split"] == "split_time")]
     pv = sub.pivot(index="event_type", columns="baseline", values="hits1")
     keep_present = [b for b in keep_baselines if b in pv.columns]
     pv = pv.reindex(top_types)[keep_present]
