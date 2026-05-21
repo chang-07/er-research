@@ -22,6 +22,9 @@ VARIANTS = [
     ("v5 + Wikidata-LEI positives",   "method_v5_crossenc_wikidata"),
     ("v6 + country/juris expansion",  "method_v6_crossenc_v6prompt"),
     ("v7 FINAL: ens3 + v5 + v6 avg",  "method_v7_final_ensemble"),
+    ("v8 MEGA5: s42+s7+s1337+v5+v6",  "method_v8_mega5_ensemble"),
+    ("v8a single (v5+v6 data+prompt)", "method_v8a_combined"),
+    ("v9: avg(v8a, v4_ens3)",          "method_v9_v8a_x_ens3"),
 ]
 
 
