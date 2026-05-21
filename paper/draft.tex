@@ -278,7 +278,7 @@ associated negatives) to one of three split regimes:
   \item \textbf{Held-out event type:} train on M\&A,
         rename, legal-form change; test on spinoff, demerger,
         breakup, absorption. The test set is heavily dominated by
-        \emph{absorption} (2{,}615 of 2{,}760 anchors, 94.7\%);
+        \emph{absorption} (2{,}609 of 2{,}760 anchors, 94.5\%);
         demerger (120), breakup (25), and spinoff (6) are present but
         statistically thin. We report per-event-type metrics within
         the split (Section~\ref{sec:experiments}) so each held-out
@@ -286,7 +286,7 @@ associated negatives) to one of three split regimes:
   \item \textbf{Held-out jurisdiction:} train on US + GB + DE; test on
         SG + JP + BR. Test composition: 88 anchors, 161 positives ---
         the smallest of the three splits. Headline numbers on this
-        split carry $\sim$$\pm$7\,pp 95\% bootstrap CIs (vs.\
+        split carry $\sim$$\pm$8.8\,pp 95\% bootstrap CIs (vs.\
         $\sim$$\pm$1.7\,pp on time/event); see Table~\ref{tab:main_results}.
 \end{itemize}
 
@@ -366,7 +366,7 @@ Our benchmark's hard-negative pool is fixed (5--10 negs per positive), so
 direct full scoring is feasible and the numbers in
 Table~\ref{tab:main_results} reflect that setting.
 
-\paragraph{v2 hard-negative re-mining (\texttt{ssec:hard\_negs}).}
+\paragraph{v2 hard-negative re-mining.}
 \label{ssec:hard_negs}
 The v1 token-overlap fallback (92\% of negs) injected enough label
 noise that explicit hard-negs slightly underperformed in-batch alone.
@@ -585,7 +585,7 @@ than doubles zero-shot on the small but operationally critical
 \texttt{BREAKUP} subset ($n=7$: 0.14 $\to$ 0.71).
 
 \paragraph{On the held-out-event split, ``held-out event type'' really
-means ``held-out absorption.''} The held-out-event test set is 94.7\%
+means ``held-out absorption.''} The held-out-event test set is 94.5\%
 \texttt{ABSORPTION} anchors (Section~\ref{ssec:splits});
 \texttt{DEMERGER}, \texttt{BREAKUP}, and \texttt{SPINOFF} contribute
 $n=42$, $n=20$, and $n=4$ respectively. We report
@@ -615,7 +615,7 @@ spinoffs.
   \small
   \caption{Per-anchor-event-type Hits@1 on the held-out-EVENT test split,
     for the zero-shot baseline (E5-small) and the v2 cross-encoder. The
-    test split is 94.7\% \texttt{ABSORPTION}; \texttt{SPINOFF} at $n=4$ is
+    test split is 94.5\% \texttt{ABSORPTION}; \texttt{SPINOFF} at $n=4$ is
     statistically uninformative. Lift sources are concentrated in the
     absorption-like types.}
   \label{tab:event_split_breakdown}
@@ -925,8 +925,8 @@ appear in GLEIF's \texttt{SuccessorEntity}; the cleaned variant
 \paragraph{Reporting / survivorship bias + thin slices.} GLEIF
 \texttt{SuccessorEntity} is voluntarily populated, biasing positives
 toward well-counseled regulated entities. The held-out-event test set
-is 94.7\% absorption (the label oversells event-type generality), and
-the held-out-jurisdiction test has only 88 anchors ($\pm$7.5\,pp
+is 94.5\% absorption (the label oversells event-type generality), and
+the held-out-jurisdiction test has only 88 anchors ($\pm$8.8\,pp
 Hits@1 CI). The cross-encoder gain clears the CI band on all three
 splits, but per-split absolute numbers should be read with those
 sample sizes in mind. A secondary auto-classifier check
@@ -946,9 +946,10 @@ on out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
 Section~\ref{ssec:diagnostics}); the fine-tuned representation is
 specialized to lifecycle ER, not generic. The parent/subsidiary
 negative class shows a regression (mean score 0.45 $\to$ 0.70 from
-bi-encoder to cross-encoder), but with only 221 negatives the
-effect-size estimate is not statistically meaningful. Explicit
-multi-class modeling of related-but-distinct entities is a v3 target.
+bi-encoder to v2 cross-encoder, worsening to 0.78 in v10), but with
+only 221 negatives the effect-size estimate is not statistically
+meaningful. Explicit multi-class modeling of related-but-distinct
+entities is a v3 target.
 
 \section{Conclusion}
 
