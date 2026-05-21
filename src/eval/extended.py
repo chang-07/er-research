@@ -21,13 +21,19 @@ import pyarrow.parquet as pq
 PREDICTION_FILES = [
     "exact_name", "token_set", "tfidf_char", "sentence_encoder",
     "method_full", "method_no_state", "method_no_hard",
+    "method_v2_full", "method_v2_crossenc",
 ]
+SPLITS_TO_REPORT = ["split_time", "split_event", "split_jurisdiction"]
 
-def per_event_type_hits1(test_df_with_score, top_n_types=8):
+def per_event_type_hits1(test_df_with_score, top_n_types=12, n_boots=200, seed=42):
     """For each anchor, rank its candidates by score; bucket by event type.
 
-    Returns DataFrame: (event_type, n_anchors, hits1, mrr)
+    Returns DataFrame: (event_type, n_anchors, hits1, hits1_ci_lo, hits1_ci_hi,
+                       hits3, mrr).
+
+    Bootstrap CIs are computed by resampling anchors within an event type.
     """
+    rng = np.random.default_rng(seed)
     rows = []
     for evtype, sub in test_df_with_score.groupby("anchor_event_type"):
         hits1, hits3, rr = [], [], []
@@ -44,10 +50,23 @@ def per_event_type_hits1(test_df_with_score, top_n_types=8):
             hits3.append(rank <= 3)
             rr.append(1.0 / rank)
         if rr:
+            arr = np.asarray(hits1, dtype=np.int8)
+            n = len(arr)
+            if n >= 5:
+                boots = np.empty(n_boots)
+                for i in range(n_boots):
+                    idx = rng.integers(0, n, size=n)
+                    boots[i] = arr[idx].mean()
+                ci_lo = float(np.percentile(boots, 2.5))
+                ci_hi = float(np.percentile(boots, 97.5))
+            else:
+                ci_lo = ci_hi = float("nan")
             rows.append({
                 "event_type": evtype or "(unknown)",
-                "n_anchors": len(rr),
+                "n_anchors": n,
                 "hits1": float(np.mean(hits1)),
+                "hits1_ci_lo": ci_lo,
+                "hits1_ci_hi": ci_hi,
                 "hits3": float(np.mean(hits3)),
                 "mrr": float(np.mean(rr)),
             })
@@ -69,33 +88,43 @@ def main():
     ).to_pandas()
     print(f"loaded {len(pairs):,} pairs", file=sys.stderr)
 
-    # --- per-event-type breakdown for every baseline/method --------------
+    # --- per-event-type breakdown for every (baseline, split) ------------
     rows = []
-    for bname in PREDICTION_FILES:
-        ppath = os.path.join(args.data, "predictions", f"{bname}.parquet")
-        if not os.path.exists(ppath):
-            continue
-        preds = pq.read_table(ppath).to_pandas()
-        df = pairs.merge(preds, on=["anchor_lei", "candidate_lei"], how="left")
-        df["score"] = df["score"].fillna(0.0)
-        # use split_time as the "headline" eval — biggest, most representative
-        test = df[df["split_time"] == "test"]
-        if len(test) == 0:
-            continue
-        breakdown = per_event_type_hits1(test)
-        breakdown["baseline"] = bname
-        rows.append(breakdown)
+    for split_col in SPLITS_TO_REPORT:
+        for bname in PREDICTION_FILES:
+            ppath = os.path.join(args.data, "predictions", f"{bname}.parquet")
+            if not os.path.exists(ppath):
+                continue
+            preds = pq.read_table(ppath).to_pandas()
+            df = pairs.merge(preds, on=["anchor_lei", "candidate_lei"], how="left")
+            df["score"] = df["score"].fillna(0.0)
+            test = df[df[split_col] == "test"]
+            if len(test) == 0:
+                continue
+            breakdown = per_event_type_hits1(test)
+            if breakdown.empty:
+                continue
+            breakdown["baseline"] = bname
+            breakdown["split"] = split_col
+            rows.append(breakdown)
 
     pet = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
     out_pet = os.path.join(args.data, "per_event_type_metrics.csv")
     pet.to_csv(out_pet, index=False)
     print(f"wrote -> {out_pet}", file=sys.stderr)
-    print()
-    print("Per-event-type Hits@1 (split_time test), top types:")
-    if not pet.empty:
-        pv = pet.pivot(index="event_type", columns="baseline", values="hits1").round(3)
+    for split_col in SPLITS_TO_REPORT:
+        sub = pet[pet["split"] == split_col]
+        if sub.empty:
+            continue
+        print()
+        print(f"Per-event-type Hits@1 ({split_col} test), top types:")
+        pv = sub.pivot(index="event_type", columns="baseline", values="hits1").round(3)
         order = [b for b in PREDICTION_FILES if b in pv.columns]
         pv = pv[order]
+        # also show n_anchors for context
+        n_pv = sub.pivot(index="event_type", columns="baseline",
+                          values="n_anchors").iloc[:, 0].astype(int)
+        pv.insert(0, "n", n_pv)
         print(pv.to_string())
 
     # --- event-year histogram for the dataset figure ---------------------
