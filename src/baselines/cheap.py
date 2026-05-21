@@ -41,13 +41,17 @@ def normalize_name(name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data")
+    ap.add_argument("--pairs", default="pairs.parquet",
+                    help="pairs parquet filename under --data")
+    ap.add_argument("--suffix", default="",
+                    help="suffix appended to output prediction filenames")
     args = ap.parse_args()
 
     out_dir = os.path.join(args.data, "predictions")
     os.makedirs(out_dir, exist_ok=True)
 
-    print("Loading pairs...", file=sys.stderr)
-    pairs = pq.read_table(os.path.join(args.data, "pairs.parquet"),
+    print(f"Loading {args.pairs}...", file=sys.stderr)
+    pairs = pq.read_table(os.path.join(args.data, args.pairs),
                           columns=["anchor_lei", "candidate_lei"]).to_pandas()
     print(f"  {len(pairs):,} pairs", file=sys.stderr)
 
@@ -74,7 +78,7 @@ def main():
     out = pd.DataFrame({"anchor_lei": pairs["anchor_lei"],
                         "candidate_lei": pairs["candidate_lei"],
                         "score": scores})
-    out.to_parquet(os.path.join(out_dir, "exact_name.parquet"),
+    out.to_parquet(os.path.join(out_dir, f"exact_name{args.suffix}.parquet"),
                    compression="snappy", index=False)
     print(f"  scored {len(out):,} pairs in {time.time()-t0:.1f}s "
           f"(positive predictions: {int(scores.sum()):,})", file=sys.stderr)
@@ -93,7 +97,7 @@ def main():
     out = pd.DataFrame({"anchor_lei": pairs["anchor_lei"],
                         "candidate_lei": pairs["candidate_lei"],
                         "score": scores})
-    out.to_parquet(os.path.join(out_dir, "token_set.parquet"),
+    out.to_parquet(os.path.join(out_dir, f"token_set{args.suffix}.parquet"),
                    compression="snappy", index=False)
     print(f"  scored {len(out):,} pairs in {time.time()-t0:.1f}s "
           f"(mean={scores.mean():.3f}, median={np.median(scores):.3f})", file=sys.stderr)
@@ -123,7 +127,7 @@ def main():
     out = pd.DataFrame({"anchor_lei": pairs["anchor_lei"],
                         "candidate_lei": pairs["candidate_lei"],
                         "score": scores.astype(float)})
-    out.to_parquet(os.path.join(out_dir, "tfidf_char.parquet"),
+    out.to_parquet(os.path.join(out_dir, f"tfidf_char{args.suffix}.parquet"),
                    compression="snappy", index=False)
     print(f"  scored {len(out):,} pairs in {time.time()-t0:.1f}s "
           f"(mean={scores.mean():.3f}, median={np.median(scores):.3f})", file=sys.stderr)

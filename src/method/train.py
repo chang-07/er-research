@@ -57,6 +57,8 @@ def main():
     ap.add_argument("--max-train-pairs", type=int, default=None,
                     help="cap training positives (for quick debug)")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--out-name", default=None,
+                    help="prediction/model basename; defaults to method_{variant}")
     args = ap.parse_args()
 
     import torch
@@ -105,20 +107,44 @@ def main():
     print(f"  train positives (no-test in any split): {len(pos_train):,}",
           file=sys.stderr)
 
-    # v2: augment with transitive successor-chain positives
+    # v2: augment with transitive successor-chain positives.
+    # Path-aware leakage filter: reject (A, C) if any node on the A->...->C
+    # chain is a test anchor or test successor in any split regime.
     if args.variant == "v2_full":
         trans_path = os.path.join(args.data, "transitive_positives.parquet")
         if os.path.exists(trans_path):
-            trans = pq.read_table(trans_path,
-                                   columns=["pred_lei", "succ_lei"]).to_pandas()
-            # only keep transitive positives whose anchor and successor are
-            # both in our train-safe pool (defense against leakage)
+            trans_cols = ["pred_lei", "succ_lei"]
+            schema = pq.read_table(trans_path).schema.names
+            if "intermediate_leis" in schema:
+                trans_cols.append("intermediate_leis")
+            trans = pq.read_table(trans_path, columns=trans_cols).to_pandas()
             train_anchors = set(pos_train["anchor_lei"])
             test_anchors = set(pos[~is_safe]["anchor_lei"])
             test_succs = set(pos[~is_safe]["candidate_lei"])
-            trans = trans[trans["pred_lei"].isin(train_anchors)
-                          & ~trans["succ_lei"].isin(test_anchors)
-                          & ~trans["succ_lei"].isin(test_succs)]
+            test_lei = test_anchors | test_succs
+            # Endpoint filter (as before)
+            mask = (trans["pred_lei"].isin(train_anchors)
+                    & ~trans["succ_lei"].isin(test_anchors)
+                    & ~trans["succ_lei"].isin(test_succs))
+            # Path-aware filter: also reject if any intermediate is in test
+            if "intermediate_leis" in trans.columns:
+                def path_safe(s):
+                    if not s:
+                        return True
+                    return not any(x in test_lei for x in s.split(","))
+                inter_safe = trans["intermediate_leis"].fillna("").map(path_safe)
+                pre_count = int(mask.sum())
+                mask &= inter_safe
+                post_count = int(mask.sum())
+                print(f"  path-aware filter dropped {pre_count - post_count:,} "
+                      f"transitive positives with test-leaking intermediates",
+                      file=sys.stderr)
+            else:
+                print(f"  WARN: transitive_positives.parquet has no "
+                      f"intermediate_leis column; falling back to endpoint-only "
+                      f"filter (rerun transitive_positives.py to enable "
+                      f"path-aware filtering)", file=sys.stderr)
+            trans = trans[mask]
             trans = trans.rename(columns={"pred_lei": "anchor_lei",
                                           "succ_lei": "candidate_lei"})
             trans["label"] = 1
@@ -178,7 +204,8 @@ def main():
         sys.exit(1)
 
     # ---- train -------------------------------------------------------------
-    out_dir = os.path.join(args.data, "models", f"method_{args.variant}")
+    out_basename = args.out_name or f"method_{args.variant}"
+    out_dir = os.path.join(args.data, "models", out_basename)
     os.makedirs(out_dir, exist_ok=True)
 
     if args.variant == "zero_shot":
@@ -226,7 +253,7 @@ def main():
 
     preds_dir = os.path.join(args.data, "predictions")
     os.makedirs(preds_dir, exist_ok=True)
-    out_path = os.path.join(preds_dir, f"method_{args.variant}.parquet")
+    out_path = os.path.join(preds_dir, f"{out_basename}.parquet")
     out_df = pd.DataFrame({"anchor_lei": pairs["anchor_lei"],
                             "candidate_lei": pairs["candidate_lei"],
                             "score": scores.astype(float)})

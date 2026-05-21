@@ -9,10 +9,15 @@ materialize in Phase 1 because we only had direct successor links. With
 the same source data (successor_links.parquet) we can derive transitive
 positives at no cost.
 
+The output also records the intermediate LEIs on each chain so that
+downstream training code can do path-aware leakage filtering --- e.g.,
+reject transitive (A, C) if any intermediate node B is a test-set
+anchor or successor in any split regime.
+
 Output: data/transitive_positives.parquet
-  pred_lei, succ_lei, depth, classification = "transitive_chain"
-  where depth is the number of hops (>=2; direct links are depth=1 and
-  already in successor_links.parquet).
+  pred_lei, succ_lei, depth, classification = "transitive_chain",
+  intermediate_leis (comma-separated string of LEIs strictly between
+  pred and succ on the chain; empty string for depth=1, never written)
 """
 import argparse
 import os
@@ -42,28 +47,36 @@ def main():
     for p, s in zip(direct["pred_lei"], direct["succ_lei"]):
         adj[p].add(s)
 
-    # BFS each predecessor up to max_depth
+    # BFS each predecessor up to max_depth, tracking parent pointers so we
+    # can reconstruct the chain for path-aware leakage filtering downstream.
     print(f"walking chains to depth {args.max_depth}...", file=sys.stderr)
     rows = []
     direct_pairs = set(zip(direct["pred_lei"], direct["succ_lei"]))
     for start in adj:
-        # BFS from start
         frontier = [(start, 0)]
-        seen = {start}
+        parent = {start: None}    # node -> predecessor on the path from `start`
         while frontier:
             curr, d = frontier.pop()
             if d >= args.max_depth:
                 continue
             for nxt in adj.get(curr, ()):
-                if nxt in seen:
+                if nxt in parent:
                     continue
-                seen.add(nxt)
+                parent[nxt] = curr
                 if d + 1 >= 2 and (start, nxt) not in direct_pairs:
+                    # reconstruct intermediate nodes (strictly between start and nxt)
+                    intermediates = []
+                    node = curr
+                    while node is not None and node != start:
+                        intermediates.append(node)
+                        node = parent[node]
+                    intermediates.reverse()
                     rows.append({
                         "pred_lei": start,
                         "succ_lei": nxt,
                         "depth": d + 1,
                         "classification": "transitive_chain",
+                        "intermediate_leis": ",".join(intermediates),
                     })
                 frontier.append((nxt, d + 1))
 

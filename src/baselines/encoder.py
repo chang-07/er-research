@@ -24,6 +24,8 @@ def main():
     ap.add_argument("--batch-size", type=int, default=128)
     ap.add_argument("--name", default="sentence_encoder",
                     help="prediction file basename")
+    ap.add_argument("--pairs", default="pairs.parquet",
+                    help="pairs parquet filename under --data")
     args = ap.parse_args()
 
     # Import lazily so the script imports without torch installed
@@ -32,8 +34,8 @@ def main():
     print(f"Loading model: {args.model}", file=sys.stderr)
     model = SentenceTransformer(args.model)
 
-    print("Loading pairs + entity names...", file=sys.stderr)
-    pairs = pq.read_table(os.path.join(args.data, "pairs.parquet"),
+    print(f"Loading pairs from {args.pairs} + entity names...", file=sys.stderr)
+    pairs = pq.read_table(os.path.join(args.data, args.pairs),
                           columns=["anchor_lei", "candidate_lei"]).to_pandas()
     lei_set = set(pairs["anchor_lei"]) | set(pairs["candidate_lei"])
     ent = pq.read_table(os.path.join(args.data, "entities.parquet"),

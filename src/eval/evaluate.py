@@ -52,6 +52,23 @@ def prf1(y_true, y_score, thr):
     f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
     return p, r, f1
 
+def _per_anchor_ranks(df_test):
+    """Return arrays parallel to anchors_with_pos: (anchor_lei, rank_of_first_pos).
+    """
+    anchors, ranks = [], []
+    for anchor, sub in df_test.groupby("anchor_lei", sort=False):
+        if sub["label"].sum() == 0 or len(sub) < 2:
+            continue
+        sub = sub.sample(frac=1.0, random_state=0)
+        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
+        pos_idx = ranked.index[ranked["label"] == 1]
+        if len(pos_idx) == 0:
+            continue
+        anchors.append(anchor)
+        ranks.append(int(pos_idx[0]) + 1)
+    return np.asarray(anchors), np.asarray(ranks)
+
+
 def retrieval_metrics(df_test):
     """Per-anchor retrieval: rank the true successor among candidates.
 
@@ -59,25 +76,31 @@ def retrieval_metrics(df_test):
     score (desc) and look at the position of the positive. Returns mean
     Hits@1, Hits@3, MRR over anchors with a positive.
     """
-    hits1, hits3, rr = [], [], []
-    for anchor, sub in df_test.groupby("anchor_lei"):
-        if sub["label"].sum() == 0 or len(sub) < 2:
-            continue
-        # Tie-break with a stable shuffle so equal scores aren't deterministic
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        # position of first positive
-        pos_idx = ranked.index[ranked["label"] == 1]
-        if len(pos_idx) == 0:
-            continue
-        first = int(pos_idx[0]) + 1   # 1-indexed rank
-        hits1.append(1 if first == 1 else 0)
-        hits3.append(1 if first <= 3 else 0)
-        rr.append(1.0 / first)
-    if not rr:
+    _, ranks = _per_anchor_ranks(df_test)
+    if len(ranks) == 0:
         return 0.0, 0.0, 0.0, 0
-    return (float(np.mean(hits1)), float(np.mean(hits3)),
-            float(np.mean(rr)), len(rr))
+    h1 = float((ranks == 1).mean())
+    h3 = float((ranks <= 3).mean())
+    mrr = float((1.0 / ranks).mean())
+    return h1, h3, mrr, int(len(ranks))
+
+
+def bootstrap_hits1_ci(df_test, n_boots=200, seed=42):
+    """Bootstrap 95% CI on Hits@1 by resampling anchors (with their full candidate
+    sets) with replacement. Returns (lo, hi). Falls back to (nan, nan) if no
+    anchors with positives are present.
+    """
+    anchors, ranks = _per_anchor_ranks(df_test)
+    if len(anchors) == 0:
+        return float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    n = len(anchors)
+    boots = np.empty(n_boots, dtype=float)
+    is_hit = (ranks == 1).astype(np.int8)
+    for i in range(n_boots):
+        idx = rng.integers(0, n, size=n)
+        boots[i] = is_hit[idx].mean()
+    return float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))
 
 def main():
     ap = argparse.ArgumentParser()
@@ -125,20 +148,23 @@ def main():
             thr, _ = best_threshold(y_train, s_train)
             p, r, f1 = prf1(y_test, s_test, thr)
             h1, h3, mrr, n_anchors = retrieval_metrics(test)
+            h1_lo, h1_hi = bootstrap_hits1_ci(test, n_boots=200, seed=42)
 
             metric_rows.extend([
-                {"baseline": baseline, "split": regime, "metric": "auroc",      "value": auroc},
-                {"baseline": baseline, "split": regime, "metric": "auprc",      "value": auprc},
-                {"baseline": baseline, "split": regime, "metric": "f1_tuned",   "value": f1},
-                {"baseline": baseline, "split": regime, "metric": "precision",  "value": p},
-                {"baseline": baseline, "split": regime, "metric": "recall",     "value": r},
-                {"baseline": baseline, "split": regime, "metric": "threshold",  "value": thr},
-                {"baseline": baseline, "split": regime, "metric": "hits@1",     "value": h1},
-                {"baseline": baseline, "split": regime, "metric": "hits@3",     "value": h3},
-                {"baseline": baseline, "split": regime, "metric": "mrr",        "value": mrr},
-                {"baseline": baseline, "split": regime, "metric": "n_anchors",  "value": n_anchors},
-                {"baseline": baseline, "split": regime, "metric": "n_test",     "value": int(len(test))},
-                {"baseline": baseline, "split": regime, "metric": "n_pos_test", "value": int(y_test.sum())},
+                {"baseline": baseline, "split": regime, "metric": "auroc",       "value": auroc},
+                {"baseline": baseline, "split": regime, "metric": "auprc",       "value": auprc},
+                {"baseline": baseline, "split": regime, "metric": "f1_tuned",    "value": f1},
+                {"baseline": baseline, "split": regime, "metric": "precision",   "value": p},
+                {"baseline": baseline, "split": regime, "metric": "recall",      "value": r},
+                {"baseline": baseline, "split": regime, "metric": "threshold",   "value": thr},
+                {"baseline": baseline, "split": regime, "metric": "hits@1",      "value": h1},
+                {"baseline": baseline, "split": regime, "metric": "hits@1_lo",   "value": h1_lo},
+                {"baseline": baseline, "split": regime, "metric": "hits@1_hi",   "value": h1_hi},
+                {"baseline": baseline, "split": regime, "metric": "hits@3",      "value": h3},
+                {"baseline": baseline, "split": regime, "metric": "mrr",         "value": mrr},
+                {"baseline": baseline, "split": regime, "metric": "n_anchors",   "value": n_anchors},
+                {"baseline": baseline, "split": regime, "metric": "n_test",      "value": int(len(test))},
+                {"baseline": baseline, "split": regime, "metric": "n_pos_test",  "value": int(y_test.sum())},
             ])
 
         # Per-negative-class breakdown (on entire dataset, label=0 only)
@@ -167,11 +193,13 @@ def main():
     for regime in SPLIT_REGIMES:
         sub = metrics_df[(metrics_df["split"] == regime)
                          & (metrics_df["metric"].isin(
-                             ["auroc","auprc","f1_tuned","hits@1","hits@3","mrr","n_anchors","n_test","n_pos_test"]))]
+                             ["auroc","auprc","f1_tuned","hits@1","hits@1_lo","hits@1_hi",
+                              "hits@3","mrr","n_anchors","n_test","n_pos_test"]))]
         if sub.empty:
             continue
         pv = sub.pivot(index="baseline", columns="metric", values="value")
-        order = ["auroc","auprc","f1_tuned","hits@1","hits@3","mrr","n_anchors","n_pos_test","n_test"]
+        order = ["auroc","auprc","f1_tuned","hits@1","hits@1_lo","hits@1_hi",
+                 "hits@3","mrr","n_anchors","n_pos_test","n_test"]
         pv = pv[[c for c in order if c in pv.columns]]
         print(f"\n{regime}:")
         print(pv.round(4).to_string())

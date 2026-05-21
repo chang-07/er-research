@@ -54,6 +54,13 @@ def main():
     ap.add_argument("--max-train-pairs", type=int, default=None)
     ap.add_argument("--out-name", default="method_v2_crossenc")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--hard-negs", default="hard_negatives_v2.parquet",
+                    help="hard-neg parquet filename under --data for TRAINING")
+    ap.add_argument("--train-pairs", default="pairs.parquet",
+                    help="pairs parquet for TRAINING-set positives & split assignments")
+    ap.add_argument("--extra-pairs", default="",
+                    help="comma-separated list of EXTRA pairs files to score on. "
+                         "Each produces <out-name>_on_<stem>.parquet predictions.")
     args = ap.parse_args()
 
     import torch
@@ -65,13 +72,24 @@ def main():
     rng = np.random.default_rng(args.seed)
 
     # ---- load data --------------------------------------------------------
-    print("loading parquet...", file=sys.stderr)
+    print(f"loading {args.train_pairs}...", file=sys.stderr)
     pairs = pq.read_table(
-        os.path.join(args.data, "pairs.parquet"),
+        os.path.join(args.data, args.train_pairs),
         columns=["anchor_lei", "candidate_lei", "label",
                  "split_time", "split_event", "split_jurisdiction"],
     ).to_pandas()
+    extra_pair_paths = [p.strip() for p in args.extra_pairs.split(",") if p.strip()]
+    extra_pairs_dfs = {}
+    for p in extra_pair_paths:
+        pp = pq.read_table(
+            os.path.join(args.data, p),
+            columns=["anchor_lei", "candidate_lei"],
+        ).to_pandas()
+        extra_pairs_dfs[p] = pp
+        print(f"  extra-eval {p}: {len(pp):,} rows", file=sys.stderr)
     lei_set = set(pairs["anchor_lei"]) | set(pairs["candidate_lei"])
+    for pp in extra_pairs_dfs.values():
+        lei_set |= set(pp["anchor_lei"]) | set(pp["candidate_lei"])
     ent = pq.read_table(
         os.path.join(args.data, "entities.parquet"),
         columns=["lei", "legal_name", "legal_addr_country", "legal_form_code"],
@@ -95,16 +113,36 @@ def main():
     pos_train = pos[is_safe].copy()
     print(f"  train positives: {len(pos_train):,}", file=sys.stderr)
 
-    # transitive positives augmentation
+    # transitive positives augmentation, with path-aware leakage filter:
+    # reject (A, C) if any node on the A->...->C chain is a test anchor or
+    # test successor in any split regime.
     trans_path = os.path.join(args.data, "transitive_positives.parquet")
     if os.path.exists(trans_path):
-        trans = pq.read_table(trans_path,
-                               columns=["pred_lei", "succ_lei"]).to_pandas()
+        trans_cols = ["pred_lei", "succ_lei"]
+        schema = pq.read_table(trans_path).schema.names
+        if "intermediate_leis" in schema:
+            trans_cols.append("intermediate_leis")
+        trans = pq.read_table(trans_path, columns=trans_cols).to_pandas()
         test_anchors = set(pos[~is_safe]["anchor_lei"])
         test_succs = set(pos[~is_safe]["candidate_lei"])
-        trans = trans[~trans["pred_lei"].isin(test_anchors)
-                       & ~trans["succ_lei"].isin(test_anchors)
-                       & ~trans["succ_lei"].isin(test_succs)]
+        test_lei = test_anchors | test_succs
+        # Endpoint filter
+        mask = (~trans["pred_lei"].isin(test_anchors)
+                & ~trans["succ_lei"].isin(test_anchors)
+                & ~trans["succ_lei"].isin(test_succs))
+        if "intermediate_leis" in trans.columns:
+            def path_safe(s):
+                if not s:
+                    return True
+                return not any(x in test_lei for x in s.split(","))
+            inter_safe = trans["intermediate_leis"].fillna("").map(path_safe)
+            pre_count = int(mask.sum())
+            mask &= inter_safe
+            post_count = int(mask.sum())
+            print(f"  path-aware filter dropped {pre_count - post_count:,} "
+                  f"transitive positives with test-leaking intermediates",
+                  file=sys.stderr)
+        trans = trans[mask]
         trans = trans.rename(columns={"pred_lei": "anchor_lei",
                                        "succ_lei": "candidate_lei"})
         trans["label"] = 1
@@ -120,8 +158,8 @@ def main():
                                       random_state=args.seed)
         print(f"  capped to {len(pos_train):,}", file=sys.stderr)
 
-    # v2 hard negs
-    hn_path = os.path.join(args.data, "hard_negatives_v2.parquet")
+    # hard negs for training
+    hn_path = os.path.join(args.data, args.hard_negs)
     hard = pq.read_table(hn_path,
                           columns=["pred_lei", "neg_lei"]).to_pandas()
     hard = hard[hard["pred_lei"].isin(pos_train["anchor_lei"].unique())]
@@ -157,37 +195,52 @@ def main():
     print(f"training for {args.epochs} epoch(s) at lr={args.lr}...",
           file=sys.stderr)
     t0 = time.time()
+    model_out_dir = os.path.join(args.data, "models", args.out_name)
     model.fit(
         train_dataloader=train_dl,
         epochs=args.epochs,
         warmup_steps=args.warmup_steps,
         optimizer_params={"lr": args.lr},
         show_progress_bar=True,
-        output_path=os.path.join(args.data, "models", args.out_name),
+        output_path=model_out_dir,
     )
-    print(f"  trained in {time.time()-t0:.1f}s", file=sys.stderr)
-
-    # ---- score every pair in pairs.parquet -------------------------------
-    print(f"scoring {len(pairs):,} pairs...", file=sys.stderr)
-    t0 = time.time()
-    inp = [(text_for(a), text_for(c))
-           for a, c in zip(pairs["anchor_lei"], pairs["candidate_lei"])]
-    scores = model.predict(inp, batch_size=128, show_progress_bar=True,
-                            convert_to_numpy=True)
-    # Sigmoid to bring into [0,1] (raw output is a logit)
-    scores = 1.0 / (1.0 + np.exp(-scores))
-    print(f"  scored in {time.time()-t0:.1f}s "
-          f"(mean={float(scores.mean()):.3f}, median={float(np.median(scores)):.3f})",
+    # Newer sentence-transformers versions don't always honor output_path on
+    # CrossEncoder.fit(); explicit save guarantees the checkpoint lands.
+    os.makedirs(model_out_dir, exist_ok=True)
+    model.save(model_out_dir)
+    print(f"  trained in {time.time()-t0:.1f}s, saved -> {model_out_dir}",
           file=sys.stderr)
 
+    # ---- score the training-pairs file (headline preds) ------------------
     preds_dir = os.path.join(args.data, "predictions")
     os.makedirs(preds_dir, exist_ok=True)
-    out_path = os.path.join(preds_dir, f"{args.out_name}.parquet")
-    out_df = pd.DataFrame({"anchor_lei": pairs["anchor_lei"],
-                            "candidate_lei": pairs["candidate_lei"],
-                            "score": scores.astype(float)})
-    out_df.to_parquet(out_path, compression="snappy", index=False)
-    print(f"wrote -> {out_path}", file=sys.stderr)
+
+    def score_and_write(df_pairs, out_name, label):
+        print(f"scoring {len(df_pairs):,} pairs ({label})...", file=sys.stderr)
+        t0 = time.time()
+        inp = [(text_for(a), text_for(c))
+               for a, c in zip(df_pairs["anchor_lei"], df_pairs["candidate_lei"])]
+        scores = model.predict(inp, batch_size=128, show_progress_bar=True,
+                                convert_to_numpy=True)
+        # Sigmoid to bring logits to [0,1]
+        scores = 1.0 / (1.0 + np.exp(-scores))
+        print(f"  scored in {time.time()-t0:.1f}s "
+              f"(mean={float(scores.mean()):.3f}, "
+              f"median={float(np.median(scores)):.3f})", file=sys.stderr)
+        out_path = os.path.join(preds_dir, f"{out_name}.parquet")
+        out_df = pd.DataFrame({"anchor_lei": df_pairs["anchor_lei"],
+                                "candidate_lei": df_pairs["candidate_lei"],
+                                "score": scores.astype(float)})
+        out_df.to_parquet(out_path, compression="snappy", index=False)
+        print(f"wrote -> {out_path}", file=sys.stderr)
+
+    score_and_write(pairs, args.out_name, args.train_pairs)
+
+    # ---- additionally score each extra pairs file ------------------------
+    for extra_name, extra_df in extra_pairs_dfs.items():
+        stem = os.path.splitext(extra_name)[0]
+        out_name = f"{args.out_name}_on_{stem}"
+        score_and_write(extra_df, out_name, extra_name)
 
 if __name__ == "__main__":
     main()

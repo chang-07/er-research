@@ -67,6 +67,10 @@ def main():
     ap.add_argument("--negs-train", type=int, default=5)
     ap.add_argument("--negs-test", type=int, default=10)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--hard-negs", default="hard_negatives.parquet",
+                    help="filename under --data for hard negatives parquet")
+    ap.add_argument("--out-name", default="pairs.parquet",
+                    help="output filename under --data")
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -132,8 +136,8 @@ def main():
     print()
 
     # Load negatives
-    print("Loading hard negatives...", file=sys.stderr)
-    negs = pq.read_table(os.path.join(args.data, "hard_negatives.parquet")).to_pandas()
+    print(f"Loading hard negatives from {args.hard_negs}...", file=sys.stderr)
+    negs = pq.read_table(os.path.join(args.data, args.hard_negs)).to_pandas()
     negs = negs.rename(columns={"pred_lei": "anchor_lei", "neg_lei": "candidate_lei",
                                  "negative_class": "source"})
     # Shuffle for fair sampling per positive
@@ -208,7 +212,7 @@ def main():
         print(vc.to_string())
     print()
 
-    out = os.path.join(args.data, "pairs.parquet")
+    out = os.path.join(args.data, args.out_name)
     df.to_parquet(out, compression="snappy", index=False)
     print(f"wrote -> {out}  ({os.path.getsize(out)/1e6:.1f} MB)")
 
