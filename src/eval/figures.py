@@ -183,15 +183,15 @@ def fig6_cumulative_gains(data, out_dir):
 
     pairs = pq.read_table(os.path.join(data, "pairs.parquet")).to_pandas()
     milestones = [
-        ("v2 baseline",          "method_v2_crossenc"),
-        ("v4 enriched prompt",   "method_v4_crossenc_enriched"),
-        ("v4 ens. (3 seeds)",    "method_v4_crossenc_enriched_ens3"),
-        ("v5 +Wikidata-LEI",     "method_v5_crossenc_wikidata"),
-        ("v6 +country/juris",    "method_v6_crossenc_v6prompt"),
-        ("v7 ens(ens3,v5,v6)",   "method_v7_final_ensemble"),
-        ("v8a single combined",  "method_v8a_combined"),
-        ("v8aL12 (L-12)",        "method_v8aL12_combined"),
-        ("v10 = L-6 x L-12",     "method_v10_L6xL12"),
+        ("headline (L-6, 22M)",         "method_v2_crossenc"),
+        ("+ enriched prompt",           "method_v4_crossenc_enriched"),
+        ("+ 3-seed avg.",               "method_v4_crossenc_enriched_ens3"),
+        ("+ Wikidata-LEI pairs",        "method_v5_crossenc_wikidata"),
+        ("+ country expansion",         "method_v6_crossenc_v6prompt"),
+        ("3-way ensemble",              "method_v7_final_ensemble"),
+        ("single (prompt+data, L-6)",   "method_v8a_combined"),
+        ("L-12 backbone (60M)",         "method_v8aL12_combined"),
+        ("L-6 $\\times$ L-12 ensemble", "method_v10_L6xL12"),
     ]
 
     def hits1(d):
@@ -243,7 +243,7 @@ def fig6_cumulative_gains(data, out_dir):
     ax.set_ylim(0.55, 0.82)
     ax.grid(alpha=0.3, axis="y")
     ax.legend(loc="lower right", fontsize=8, ncols=3, framealpha=0.9)
-    ax.set_title("Cumulative-gain progression: v2 cross-encoder $\\to$ v10 ensemble",
+    ax.set_title("Hits@1 across the extension chain (headline cross-encoder $\\to$ ensemble)",
                   fontsize=10)
     fig.tight_layout()
     out = os.path.join(out_dir, "fig6_cumulative_gains.pdf")

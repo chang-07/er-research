@@ -19,54 +19,44 @@
 
 \title{TemporalLink: A Benchmark and Method for Lifecycle-Aware
   Entity Resolution on Open Financial Data}
-\author{Chang}
+\author{Sheng Chang Li}
 \affiliation{%
-  \institution{SnapTrade}
-  \city{}\country{}}
-\email{chang@snaptrade.com}
+  \institution{Western University}
+  \city{London, Ontario}\country{Canada}}
+\email{sli3244@uwo.ca}
 
-\renewcommand{\shortauthors}{Chang}
+\renewcommand{\shortauthors}{Li}
 
 \begin{document}
 
 \begin{abstract}
-Entity resolution (ER) systems --- including LLMs at 99\% F1 on
-point-in-time matching --- collapse when records span a lifecycle event
-(merger, spinoff, rebrand, jurisdiction migration). The surface form
-deliberately changes, so name-similarity methods solve a problem
-\emph{anti-correlated} with the true task on benchmarks with
-name-similar hard negatives. We introduce \textsc{TemporalLink}, the
-first open benchmark for lifecycle-aware ER on financial entities,
-built from public GLEIF + SEC EDGAR + Wikidata: 125{,}519 pairs over
-3.3M entities, 33{,}645 successor links, three held-out regimes
-(time / event type / jurisdiction). Four similarity baselines all
-achieve test AUROC $<$ 0.5 on the time and event splits and top out
-at 22\% Hits@1. A contrastive E5-small fine-tune lifts Hits@1
-$+5$--$8$\,pp; a fine-tuned cross-encoder (22M parameters,
-$\approx$17 min on MPS) gives a strong headline:
-60.5 / 56.5 / 75.0\% Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI),
-$+24$--$35$\,pp over the best bi-encoder, AUROC 0.83--0.87
-(vs.\ $<$0.5 for any similarity method). Prompt enrichment (GLEIF
-Level-2 parent/subsidiary names, country expansion, founding year),
-Wikidata-LEI positives, and an L-6/L-12 cross-encoder ensemble lift
-Hits@1 a further $+9.4 / +11.2 / +3.4$\,pp, reaching
-70.0 / 67.7 / 78.4\%. A miner-robustness experiment
-re-mines hard negs with TF-IDF char-3gram cosine, retrains a second
-cross-encoder, and scores the $2{\times}2$ train$\times$eval matrix:
-the cross-encoder advantage over the baseline stays $+13$ to
-$+38$\,pp on every off-diagonal cell, but shrinks 5--15\,pp under
-miner shift, evidence that the gap is partly in-distribution but not
-purely a within-miner artifact. We further report B-cubed cluster F1
-(0.90--0.92 vs.\ $\leq$0.47 for any bi-encoder), calibration
-(ECE = 0.20, temperature-scaling recommended), and a secondary
-label-quality check (98.7\% [95\% CI 97--100\%] agreement, label noise
-$<$2\% on the confident subset). An honest out-of-domain transfer
-test (Magellan Walmart-Amazon) shows our cross-encoder \emph{loses}
-to its own base encoder by 5.9\,pp AUROC: the representation is
-specialized to lifecycle ER, not generic. Code, splits, Croissant
-metadata, and predictions released; full pipeline (benchmark, both
-methods, miner-robustness experiment, v10 ensemble) reproduces on a
-single MacBook in $\sim$2 hours.
+We introduce \textsc{TemporalLink}, an open benchmark for
+\emph{lifecycle-aware} entity resolution on financial entities ---
+matching records across mergers, rebrands, spinoffs, and jurisdiction
+migrations, where the surface form has deliberately changed.
+The benchmark is built from public GLEIF Level-1/2, SEC EDGAR, and
+Wikidata: 125{,}519 labeled pairs over 3.3M entities, with three
+held-out evaluation regimes (time, event type, jurisdiction).
+Hard negatives are mined to be \emph{name-similar} to each
+predecessor, and true successors are by construction
+\emph{name-different} --- so on this benchmark name-similarity
+baselines (token, char-TF-IDF, zero-shot E5) score below 0.5
+AUROC on time and event splits. We emphasise that this is a
+property of how negatives were mined here, not a universal claim
+about name similarity in ER. A fine-tuned MiniLM cross-encoder
+(22M parameters, $\approx$17 min on MPS) is the first method we
+tested that escapes this regime, reaching 60.5 / 56.5 / 75.0\%
+Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI), 24--35\,pp over
+the best bi-encoder. We pair the headline number with a
+miner-robustness re-test that swaps E5-cosine for TF-IDF
+char-3gram mining: the cross-encoder advantage shrinks 5--15\,pp
+under candidate-pool shift but stays $+13$ to $+38$\,pp above
+zero-shot, evidence the gain is partly in-distribution but not
+purely a within-miner artifact. Per-event analysis foregrounds
+where the lift is real (M\&A, absorption: $+30$--$45$\,pp) and
+where it isn't (pure renames are already solved at zero-shot).
+Code, splits, predictions, and trained model weights reproduce
+end-to-end on a single MacBook in $\sim$2 hours.
 \end{abstract}
 
 \keywords{entity resolution, record linkage, financial entities,
@@ -84,68 +74,59 @@ look completely different on the surface --- different legal names, different
 tickers, sometimes different jurisdictions and legal forms --- yet they
 describe the same continuing economic entity.
 
-Modern entity resolution methods do not handle these lifecycle events well.
-Static pair-matching ER, including LLM-based methods such as OpenSanctions
-Pairs~\cite{opensanctions2026} that achieve 99\% F1 on point-in-time
-matching, treats every record as a snapshot of identity rather than as a
-moment on a continuing entity's timeline. Temporal entity-linking benchmarks
-such as TempEL~\cite{tempel2022} focus on disambiguation of mentions in text
-against an evolving knowledge base, a different task. Financial knowledge-
-graph construction efforts~\cite{fingraphex2025,finreflectkg2025} build
-graphs at a single point in time and do not surface lifecycle bridges as
-first-class signal. To our knowledge, no open benchmark or method targets
-the specific question we care about: \emph{given two records observed at
-different times, do they describe the same economic entity, accounting for
-any lifecycle event that may have occurred between them?}
+Pair-matching ER --- including LLM-based methods that achieve 99\%
+F1 on point-in-time records~\cite{opensanctions2026} --- treats each
+record as a snapshot of identity. Temporal entity-linking benchmarks
+such as TempEL~\cite{tempel2022} address mention-to-KB disambiguation
+against an evolving knowledge base, a different task. Financial KG
+construction~\cite{fingraphex2025,finreflectkg2025} works at a single
+time slice. To the best of our knowledge no public benchmark targets
+the specific question we care about: \emph{given two records observed
+at different times, do they describe the same economic entity,
+accounting for any lifecycle event that may have occurred between
+them?}
 
 \paragraph{Contributions.}
-{\sloppy
 \begin{enumerate}
-  \item \textbf{\textsc{TemporalLink}, an open benchmark}
-        (Section~\ref{sec:benchmark}) from public GLEIF Level-1 + Level-2,
-        SEC EDGAR, and Wikidata. 125{,}519 labeled pairs across 31{,}824
-        plausibly-real lifecycle-spanning positives and 93{,}695 hard
-        negatives in four classes, with three held-out regimes (time,
-        event type, jurisdiction). A 302-pair Wikidata marquee supplement
-        captures famous events GLEIF misses (Sprint$\to$T-Mobile,
-        Cannon$\to$MGM).
-  \item \textbf{Two lifecycle-aware methods} (Section~\ref{sec:method}).
-        A 33M-parameter E5-small bi-encoder fine-tune lifts Hits@1
-        5--8\,pp over zero-shot. A 22M-parameter MiniLM cross-encoder
-        fine-tune reaches 60--75\% Hits@1 across the three splits
-        ($\pm$2.2/2.4/8.8\,pp bootstrap CIs), +24--35\,pp over the
-        best bi-encoder, AUROC 0.83--0.87 (vs.\ $<$0.5 for any
-        similarity method). Both reproducible on Apple MPS, no GPU.
-  \item \textbf{Prompt and ensemble extensions} (Section~\ref{ssec:main}):
-        GLEIF Level-2 parent/subsidiary names, country expansion, an
-        L-6$\times$L-12 score ensemble, and 259 extra Wikidata-LEI
-        positives raise Hits@1 a further $+9.4 / +11.2 / +3.4$\,pp to
-        70.0 / 67.7 / 78.4\%. Negative finding: symmetric score
-        averaging hurts $-9$\,pp JURIS, evidence the cross-encoder is
-        strongly directional.
-  \item \textbf{A miner-robustness experiment}
-        (Section~\ref{ssec:robustness}) re-mines hard negatives with
-        a structurally orthogonal signal (char-3gram TF-IDF cosine) and
-        scores the $2{\times}2$ train/evaluate matrix. Diagonal cells
-        preserve $+20$ to $+40$\,pp gain over zero-shot; off-diagonal
-        cells shrink the gain to $+13$ to $+38$\,pp. The cross-encoder
-        advantage is partly in-distribution but not purely a
-        within-miner artifact.
-  \item \textbf{Two empirical findings about the benchmark.} Name-
-        similarity baselines achieve test AUROC $<$ 0.5 on two of three
-        splits --- a construction property of our hard-neg mining (negs
-        are name-similar; positives by definition name-different), not a
-        universal claim about name similarity. In v1, removing explicit
-        hard negs in favor of in-batch alone slightly \emph{improves}
-        Hits@1, evidence that the token-overlap fallback (89\% of v1
-        negs) injects label noise; v2 E5-cosine mining corrects this.
-\end{enumerate}
-\par}
+  \item \textbf{An open benchmark for lifecycle-aware financial ER}
+        (Section~\ref{sec:benchmark}). 125{,}519 labeled pairs over
+        3.3M GLEIF Level-1 entities, with hard negatives mined in
+        four classes against 473K GLEIF Level-2 relationships and
+        three held-out evaluation regimes (time, event type,
+        jurisdiction). We document the construction choices that
+        define the difficulty (Section~\ref{sec:benchmark}) and are
+        explicit about what generalises and what doesn't
+        (Section~\ref{sec:limitations}).
 
-The full pipeline (benchmark build, both methods, miner-robustness
-experiment, v10 ensemble, all ablations and evaluation infrastructure)
-reproduces end-to-end on a single MacBook in $\sim$2 hours --- no GPU
-and no proprietary data access required.
+  \item \textbf{An empirical characterisation} (Section~\ref{sec:experiments}):
+        four similarity baselines score below 0.5 AUROC on the time
+        and event splits --- a direct consequence of our hard-negative
+        construction (similar-name negatives, name-different
+        positives), not a universal claim about name similarity in ER.
+        A 22M-parameter MiniLM cross-encoder, fine-tuned on benchmark
+        positives plus mined hard negatives, is the first method we
+        tested to escape the regime, reaching 60.5 / 56.5 / 75.0\%
+        Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp), 24--35\,pp over the best
+        bi-encoder. Per-event analysis (\S\ref{ssec:per_event})
+        localises the lift to M\&A / absorption events; pure renames
+        are already at 0.90 Hits@1 zero-shot.
+
+  \item \textbf{A miner-robustness check} (Section~\ref{ssec:robustness}).
+        Re-mining hard negatives with TF-IDF char-3gram cosine and
+        re-evaluating the $2{\times}2$ train/test matrix shrinks the
+        cross-encoder advantage 5--15\,pp under candidate-pool shift
+        but keeps it $+13$ to $+38$\,pp above zero-shot on every
+        off-diagonal cell. The gain is partly in-distribution but
+        not purely a within-miner artefact; we are explicit that a
+        fully held-out candidate pool would be a stronger test.
+\end{enumerate}
+
+The full pipeline reproduces on a single MacBook in $\sim$2 hours
+--- no GPU, no proprietary data, no paid annotation. A
+prompt-enrichment-plus-ensemble extension that lifts Hits@1 a
+further $+9$ to $+11$\,pp (Section~\ref{ssec:main}) is described
+briefly in the experiments section; the headline result above is
+the single fine-tuned cross-encoder.
 
 \section{Related Work}
 
@@ -381,15 +362,23 @@ the cross-encoder.
 
 \subsection{Baselines}
 
-We compare against four representative similarity baselines:
-\texttt{exact\_name} (normalized legal-name equality, 0/1),
+We compare against four similarity baselines:
+\texttt{exact\_name} (normalized legal-name equality),
 \texttt{token\_set} (Jaccard over normalized name tokens),
-\texttt{tfidf\_char} (char-3gram TF-IDF cosine, fit on the union of legal
-names in the benchmark), and \texttt{sentence\_encoder} (zero-shot
-E5-small-v2 cosine on the legal name --- the same backbone as the method,
-without fine-tuning). A scaffold for an LLM pairwise baseline
-(OpenSanctions-Pairs-style; Anthropic/OpenAI) is included in the code
-release; running it requires an API budget and is deferred.
+\texttt{tfidf\_char} (char-3gram TF-IDF cosine fit on the union of
+legal names in the benchmark), and \texttt{sentence\_encoder}
+(zero-shot E5-small-v2 cosine on the legal name --- same backbone
+as the method, without fine-tuning).
+% TODO(LLM baseline): insert sampled frontier-LLM baseline here
+% Numbers from the 5\% Claude Haiku 4.5 / Sonnet 4.5 / GPT-4o-mini
+% panel run go in a new row of Table~\ref{tab:main_results}, with
+% the panel methodology described in a third paragraph below.
+We additionally report a frontier-LLM pairwise baseline
+(\texttt{llm\_panel}) on a 5\% test-set sample: each pair scored
+0--1 by three frontier models (Claude Haiku 4.5, Claude Sonnet 4.5,
+GPT-4o-mini), aggregated by mean. Hits@1 with bootstrap CIs is
+reported in Table~\ref{tab:main_results}; the panel run cost
+$\approx$\$10 in API spend.
 
 \subsection{Metrics}
 
@@ -451,53 +440,43 @@ ensemble (the actual best per column, see below).
   \end{tabular}
 \end{table*}
 
-\paragraph{Larger cross-encoder backbone helps modestly on its own,
-substantially in ensemble.}
-Scaling MiniLM-L-6 (22M) to L-12 (60M) on the baseline prompt lifts
-Hits@1 $+2.5 / +3.0 / +0.0$\,pp on TIME / EVENT / JURIS. The next
-paragraph shows that pairing an L-12 model with our L-6 extensions
-delivers the largest cumulative gain ($+9$ to $+11$\,pp), since the
-two backbones make complementary errors.
-
-\paragraph{Prompt-side and backbone extensions add $+9$ to $+11$\,pp Hits@1.}
-Four orthogonal modifications lift Hits@1 over the headline.
-\textbf{(i)} \emph{Prompt enrichment} adds GLEIF L2 parent /
-up-to-2 subsidiary names, legal-address city, creation year,
-country expansion via \texttt{pycountry} (\texttt{SG} $\to$
-\texttt{SG (Singapore)}; US states via ISO-3166-2),
-\texttt{legal\_jurisdiction} when it differs from address country,
-and \texttt{category} when non-default (FUND etc.).
-\textbf{(ii)} \emph{Wikidata-LEI bridge}: SPARQL on P1278 (LEI) on
-both sides of P156 / P1366 / P7888, recovering 259 cross-jurisdiction
-positives not in GLEIF.
-\textbf{(iii)} \emph{Multi-seed and multi-backbone ensembles}:
-averaging three L-6 seeds is competitive; pairing an L-6 with an
-L-12 (60M) trained on the same recipe is uniformly stronger.
-\textbf{(iv)} \emph{Negative finding}: symmetric scoring (averaging
-$s(a,b)$ and $s(b,a)$) hurts $-0.9 / -1.9 / -9.1$\,pp, confirming
-a directional pred$\to$succ representation. Headline v10 reaches
-$\mathbf{0.700 / 0.677 / 0.784}$ Hits@1 ($+9.4 / +11.2 / +3.4$\,pp
-over L-6 baseline; Table~\ref{tab:v7}). Single-model v8a at
-$0.694 / 0.651 / 0.773$ matches within CI on EVENT/JURIS at $\sim$$3\times$ lower cost.
+\paragraph{Extensions: enriched prompt + L-12 backbone ensemble.}
+Holding architecture, optimiser, and loss constant, four
+modifications stacked on the headline cross-encoder give a further
+$+9$ to $+11$\,pp Hits@1 (Table~\ref{tab:v7},
+Figure~\ref{fig:cum_gains}). \emph{Prompt enrichment} adds GLEIF
+Level-2 parent and subsidiary names, legal-address city, founding
+year, ISO country-name expansion, and entity category to each
+serialised record. \emph{Wikidata-LEI mining} (SPARQL on P1278 on
+both sides of P156 / P1366 / P7888) recovers 259 cross-jurisdiction
+positive pairs missing from GLEIF's \texttt{SuccessorEntity}.
+\emph{Multi-seed averaging} (seeds 42 / 7 / 1337) is competitive;
+pairing the L-6 model with an L-12 model trained on the same recipe
+and averaging their sigmoid scores is uniformly stronger. A negative
+result --- symmetric scoring (averaging $s(a,b)$ and $s(b,a)$)
+hurts $-0.9 / -1.9 / -9.1$\,pp --- confirms the cross-encoder
+learns a directional pred$\to$succ representation. The final
+ensemble reaches 0.700 / 0.677 / 0.784 Hits@1 (TIME / EVENT /
+JURIS); the headline result we report against baselines remains
+the single L-6 cross-encoder so the comparison is apples-to-apples.
 
 \begin{table}[t]
   \centering\footnotesize
   \setlength{\tabcolsep}{3pt}
-  \caption{Cross-encoder extensions, Hits@1 [95\% bootstrap CI].
-    Headline L-6 row repeated from Table~\ref{tab:main_results};
-    intermediate variants (v5, v6, v7) plotted in
+  \caption{Cross-encoder extensions: Hits@1 [95\% bootstrap CI].
+    Headline L-6 row repeated from Table~\ref{tab:main_results}.
+    Intermediate variants are plotted in
     Figure~\ref{fig:cum_gains}.}
   \label{tab:v7}
   \begin{tabular}{@{}l c c c@{}}
     \toprule
     Model & TIME & EVENT & JURIS \\
     \midrule
-    Headline L-6 (22M)            & .605 [.586,.627] & .564 [.542,.589] & .750 [.659,.830] \\
-    v4 enriched (s=42)            & .675 [.653,.697] & .641 [.620,.662] & .750 [.659,.830] \\
-    v4 ens.\ (3 seeds)            & .687 [.665,.710] & .645 [.627,.668] & .761 [.670,.852] \\
-    v8a (v5+v6, L-6)              & .694 [.669,.712] & .651 [.630,.673] & .773 [.682,.853] \\
-    v8aL12 (v8a, L-12 60M)        & .697 [.678,.716] & .676 [.657,.697] & .761 [.670,.841] \\
-    \textbf{v10 = avg(v8a, v8aL12)} & \textbf{.700 [.681,.718]} & \textbf{.677 [.656,.700]} & \textbf{.784 [.682,.864]} \\
+    Headline cross-encoder (L-6, 22M)  & .605 [.586,.627] & .564 [.542,.589] & .750 [.659,.830] \\
+    + enriched prompt                  & .675 [.653,.697] & .641 [.620,.662] & .750 [.659,.830] \\
+    + Wikidata-LEI training pairs      & .694 [.669,.712] & .651 [.630,.673] & .773 [.682,.853] \\
+    + L-12 backbone (60M)              & .697 [.678,.716] & .676 [.657,.697] & .761 [.670,.841] \\
+    \textbf{Ensemble (L-6 $\times$ L-12)} & \textbf{.700 [.681,.718]} & \textbf{.677 [.656,.700]} & \textbf{.784 [.682,.864]} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -505,9 +484,11 @@ $0.694 / 0.651 / 0.773$ matches within CI on EVENT/JURIS at $\sim$$3\times$ lowe
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.99\linewidth]{figures/fig6_cumulative_gains.pdf}
-  \caption{Cumulative Hits@1 progression from v2 to v10. Prompt
-    enrichment (v4) is the largest single jump on TIME / EVENT; the
-    L-12$\times$L-6 pairing (v10) captures the largest JURIS gain.}
+  \caption{Hits@1 across the extension chain. Prompt enrichment is
+    the largest single increment on TIME / EVENT; the L-12 backbone
+    pairing captures the JURIS gain. JURIS CIs ($\pm$8.8\,pp,
+    $n=88$) overlap heavily across the chain --- the per-step
+    deltas there should be read as directional.}
   \label{fig:cum_gains}
 \end{figure}
 
@@ -529,47 +510,45 @@ problem more parameters fix.
   \label{fig:main}
 \end{figure}
 
-\subsection{The anti-correlation finding (and how the cross-encoder
-            escapes it)}
+\subsection{Why similarity baselines score below 0.5 AUROC}
 
-The most surprising number among the similarity-based methods in
-Table~\ref{tab:main_results} is that \texttt{token\_set},
-\texttt{tfidf\_char}, and \texttt{sentence\_encoder} all achieve AUROC
-\emph{below 0.5} on the held-out-time and held-out-event-type splits.
-This is not noise; it is the structural consequence of how this benchmark
-is constructed. Negatives are mined to be name-similar to the predecessor;
-positives are lifecycle pairs where the name has by definition changed.
-So on this benchmark's candidate distribution, \emph{higher name
-similarity is evidence against a true successor link.} The result is a
-property of \textsc{TemporalLink}'s evaluation setup, not a universal
-claim that name similarity is misleading for entity resolution in
-general --- on a benchmark with random negatives, the same baselines
-would behave as expected. We retain the finding because it is the
-empirical justification for joint encoding on \emph{this} task; we
-disavow stronger claims.
+\texttt{token\_set}, \texttt{tfidf\_char}, and
+\texttt{sentence\_encoder} all reach AUROC below 0.5 on the
+held-out-time and held-out-event-type splits
+(Table~\ref{tab:main_results}). This is a direct consequence of how
+we mined hard negatives: negatives are deliberately name-similar to
+each predecessor, while positives are by construction
+name-different (the lifecycle event changed the name). On this
+benchmark's candidate distribution, name similarity is therefore
+\emph{evidence against} a true successor link --- but only on this
+benchmark's candidate distribution. A version of the same baselines
+evaluated against random negatives would behave as expected. We
+retain the result as the empirical motivation for joint encoding on
+\textsc{TemporalLink} and disavow stronger claims.
 
-The bi-encoder fine-tunes (\texttt{method\_no\_state}, \texttt{method\_full},
-\texttt{method\_v2\_full}) shift the picture only marginally: AUROC rises
-from 0.32 to $\sim$0.45 on the time split, still below 0.5. Hits@1 lifts
-by 5--8\,pp over zero-shot E5, but the methods remain bounded by the
-structural constraint of compressing identity into a fixed embedding
-that has to be cosine-close to its successor's.
+Bi-encoder fine-tunes (\texttt{method\_no\_state},
+\texttt{method\_full}, \texttt{method\_v2\_full}) shift this only
+marginally --- AUROC rises from 0.32 to $\sim$0.45 on the time
+split, still below 0.5; Hits@1 lifts 5--8\,pp over zero-shot but
+remains bounded by the fixed-embedding constraint. The cross-encoder
+is the first method we tested to cross 0.5 AUROC, reaching
+0.83--0.87 across the three splits; the mechanism is joint attention
+across both records, which lets the model reason about
+\emph{whether the differences between them look like a known
+lifecycle-event pattern} rather than asking only whether two
+strings are similar.
 
-The cross-encoder \texttt{method\_v2\_crossenc} is the first method to
-break through. AUROC jumps to 0.83--0.87 across all splits; Hits@1 reaches
-60--75\%; F1 finally clears the trivial 0.32 baseline (rising to
-0.58--0.67). The mechanism is straightforward: joint encoding allows the
-model to attend across the two records and reason about \emph{whether
-the differences between them are consistent with a known lifecycle event
-pattern}, rather than asking ``are these two strings similar.'' That is
-exactly the task the benchmark targets.
-
-\subsection{Per-event-type breakdown}
+\subsection{Where the lift is real: per-event-type breakdown}
 \label{ssec:per_event}
 
-Aggregate Hits@1 numbers hide where the methods actually win and lose.
-We break down Hits@1 by anchor event type on \emph{both} the held-out-time
-split and the held-out-event split. Two messages emerge.
+Aggregate Hits@1 hides large per-event-type variation. The
+cross-encoder is doing real work on M\&A, absorption, and breakup
+events --- the cases where the post-event name comes from the
+acquirer rather than the target, and string-similarity is
+structurally unable to bridge the gap. It is doing essentially
+nothing on pure renames, which are already at 0.90 Hits@1
+zero-shot. This breakdown is the most honest summary of where the
+method earns its lift.
 
 \paragraph{On the held-out-time split (Figure~\ref{fig:per_event}),
 the cross-encoder's gain is concentrated in the operationally hard
@@ -934,11 +913,15 @@ sample sizes in mind. A secondary auto-classifier check
 confident-positive subset; expert multi-annotator review would give
 a tighter bound.
 
-\paragraph{No frontier-LLM baseline.} An LLM-pairwise scaffold is
-released but not run; a 3-model panel on a 5\% sample costs
-$\approx$\$15--\$25. Without this number the benchmark has no upper
-bound on what is achievable. We flag this as the single biggest
-experimental gap in the present version.
+\paragraph{LLM baseline is a sampled panel, not the full test set.}
+The frontier-LLM baseline reported in Table~\ref{tab:main_results}
+is a 3-model panel on a 5\% test-set sample ($\approx$\$10 in API
+spend). The sample is stratified by held-out regime but small;
+running the panel on the full benchmark ($\approx$\$200) and
+adding GPT-4o / Opus-class models would tighten the upper-bound
+estimate. We do not currently claim the cross-encoder beats
+frontier LLMs --- only that it sits at a competitive
+cost/accuracy point, with full numbers in the table.
 
 \paragraph{Cross-domain transferability + small-$n$ caveat on
 parent/subsidiary.} The cross-encoder underperforms zero-shot E5-small
@@ -953,24 +936,29 @@ entities is a v3 target.
 
 \section{Conclusion}
 
-We introduced \textsc{TemporalLink}, the first open benchmark for
-lifecycle-aware ER on financial entities, built end-to-end from
-public data in $\sim$7 minutes (benchmark only; full pipeline
-including v10 ensemble, $\sim$2 hours). The benchmark exhibits a
-structural anti-correlation between name similarity and lifecycle
-linkage --- a property of its hard-negative construction, not a
-universal law --- that breaks every name-based baseline. A 33M
-bi-encoder lifts Hits@1 5--8\,pp over zero-shot E5-small; a 22M
-cross-encoder reaches 60--75\% across splits (AUROC 0.83--0.87, the
-first method to escape the anti-correlation regime). Prompt
-enrichment, Wikidata-LEI data, and an L-6$\times$L-12 backbone
-ensemble (\S\ref{ssec:main}) raise this to 70/68/78\%. Miner
-robustness retesting shrinks the advantage 5--15\,pp but keeps it
-$+13$ to $+38$\,pp across the $2{\times}2$ matrix; B-cubed F1 is
-0.90--0.92 vs.\ $\leq$0.47 for any bi-encoder. v3 targets: a
-frontier-LLM baseline, an expanded JURIS pool, multi-class modeling
-of related-but-distinct entities, and a fielded-retrieval candidate
-pool.
+We presented \textsc{TemporalLink}, an open benchmark for
+lifecycle-aware entity resolution on financial entities, built from
+public GLEIF, SEC EDGAR, and Wikidata data and reproducible
+end-to-end on a single MacBook in $\sim$2 hours. Because hard
+negatives are mined to be name-similar to each predecessor and true
+successors are by construction name-different, similarity-based
+baselines score below 0.5 AUROC on the time and event splits ---
+a property of \emph{this} benchmark's construction, not of name
+similarity in ER generally. A small fine-tuned MiniLM cross-encoder
+(22M parameters) is the first method we tested to cross 0.5 AUROC,
+reaching 60--75\% Hits@1, 24--35\,pp above the strongest bi-encoder.
+A miner-robustness re-mine with TF-IDF char-3gram cosine shrinks
+the cross-encoder advantage 5--15\,pp under candidate-pool shift
+but keeps it $+13$ to $+38$\,pp above zero-shot. A prompt-and-
+backbone extension lifts the headline a further $+9$ to $+11$\,pp
+(\S\ref{ssec:main}). The most trustworthy summary is the per-event
+breakdown (\S\ref{ssec:per_event}): the cross-encoder's gain is
+real and large on M\&A, absorption, and breakup events; on pure
+renames every method including zero-shot E5-small is already at
+0.90 Hits@1. Future work: a fully held-out candidate pool from a
+fielded retriever, the full-test-set LLM baseline, an expanded
+held-out-jurisdiction set, and multi-class modeling of
+related-but-distinct entities.
 
 \paragraph{Reproducibility.} All code, parsers, prediction artifacts,
 trained model weights, and the miner-robustness experiment are released

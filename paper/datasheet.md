@@ -17,7 +17,7 @@ exposes the lifecycle-bridge problem, which causes silent failures in
 fintech and quant-finance production pipelines.
 
 **Who created the dataset?**
-Chang (chang@snaptrade.com), single author, derived entirely from public
+Sheng Chang Li (sli3244@uwo.ca), single author, derived entirely from public
 data sources (no proprietary data). The Wikidata supplement uses public
 SPARQL queries; the GLEIF labels are CC0; SEC EDGAR data is in the public
 domain.
@@ -235,11 +235,11 @@ No.
 ## 7. Maintenance
 
 **Who will be supporting/hosting/maintaining the dataset?**
-Chang (chang@snaptrade.com). Issues should be filed at the GitHub
+Sheng Chang Li (sli3244@uwo.ca). Issues should be filed at the GitHub
 repository.
 
 **How can the owner/curator be contacted?**
-chang@snaptrade.com or via GitHub.
+sli3244@uwo.ca or via GitHub.
 
 **Is there an erratum?**
 No errata at v1 release. Updates will be tracked in the GitHub
