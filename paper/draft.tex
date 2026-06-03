@@ -409,8 +409,9 @@ zero-shot LLM pairwise baselines on a stratified test-set sample
 all candidate pairs per anchor scored): Anthropic's
 \textbf{Claude Haiku 4.5} via API ($\approx$\$1.50 spend with
 prompt-caching), Anthropic's \textbf{Claude Sonnet 4.6} run through
-Claude Code subagents (no API spend, $\approx$444K tokens against
-the user's plan), and OpenAI's \textbf{gpt-oss-20b} run locally on
+Claude Code subagents in 25\,s wall-clock with 16-way parallelism
+($\approx$444K plan tokens), and OpenAI's \textbf{gpt-oss-20b}
+run locally on
 Apple Silicon via Ollama. Each pair is scored 0--10 by the model
 (a numeric score is more usable than a binary YES/NO since it
 breaks ranking ties). Per-split Hits@1 + MRR for all three appear
