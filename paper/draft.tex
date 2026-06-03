@@ -164,19 +164,15 @@ fine-tuned cross-encoder.
 \paragraph{Entity resolution and record linkage.} Classical
 ER~\cite{fellegisunter1969} matches records via similarity over
 structured fields. Modern PLM cross-encoders on serialized records
-(GraLMatch~\cite{gralmatch2025}) and fine-tuned small LMs
-(AnyMatch~\cite{anymatch2024}, Peeters \&
-Bizer~\cite{peeters2024finetune}) are now standard; the
+(GraLMatch~\cite{gralmatch2025}) are now standard, and the
 OpenSanctions Pairs corpus~\cite{opensanctions2026} benchmarks LLM
-matching at 755K pairs. Named-only company matching is addressed
-by~\cite{companyname2vec2022,tfidfopensance2025}. All adopt a
-\emph{snapshot} framing, not lifecycle-spanning matches.
+matching at 755K pairs. All adopt a \emph{snapshot} framing, not
+lifecycle-spanning matches.
 
-\paragraph{Temporal entity linking.} TempEL~\cite{tempel2022} and
-CYCLE~\cite{cycle2024} time-stratify entity linking against an
-evolving Wikipedia, but the task is mention-to-KB disambiguation
-rather than record-to-record matching, and the entities are
-general-purpose (people, films, organisations) rather than financial
+\paragraph{Temporal entity linking.} TempEL~\cite{tempel2022}
+time-stratifies entity linking against an evolving Wikipedia, but
+the task is mention-to-KB disambiguation rather than record-to-record
+matching, and the entities are general-purpose rather than financial
 legal entities with structured lifecycle events.
 
 \paragraph{Financial entity knowledge graphs.} Recent work at the ACM
@@ -184,11 +180,6 @@ Conference on AI in Finance constructs financial-filing knowledge
 graphs (FinGraphEx~\cite{fingraphex2025},
 FinReflectKG~\cite{finreflectkg2025}) at a single time slice; the
 lifecycle-bridge question is orthogonal.
-
-\paragraph{Financial time-series foundation models.}
-PLUTUS~\cite{plutus2024} and Bloomberg's
-Delphyne~\cite{bloomberg_delphyne2025} are adjacent financial-ML
-work on forecasting, mentioned here only to delimit scope.
 
 \section{The TemporalLink Benchmark}
 \label{sec:benchmark}
@@ -443,8 +434,7 @@ classification framing; and the train-tuned F1 at the F1-optimal threshold.
 
 Table~\ref{tab:main_results} reports test-set metrics across the three
 split regimes for all baselines and method variants on the v2 evaluation
-pool (\texttt{pairs.parquet}); Figure~\ref{fig:main} bars the same
-numbers. Headline cross-encoder Hits@1 95\% bootstrap confidence
+pool (\texttt{pairs.parquet}). Headline cross-encoder Hits@1 95\% bootstrap confidence
 intervals are $\pm$2.2\,pp (TIME), $\pm$2.4\,pp (EVENT), and $\pm$8.8\,pp
 (JURIS, $n=88$ anchors); the jurisdiction-split gain comfortably clears
 its CI band but absolute numbers on that split should be treated as
@@ -551,16 +541,6 @@ bi-encoder's constraint is structural, not parameter-bound: cosine-
 close embeddings for lexically-different lifecycle pairs are not a
 problem more parameters fix.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.92\linewidth]{figures/fig2_main_results.pdf}
-  \caption{Hits@1 (per-anchor retrieval, test set) across all baselines
-    and method variants for the three held-out split regimes; bars
-    correspond to Table~\ref{tab:main_results}. Bi-encoders beat
-    zero-shot E5-small by 5--8\,pp; the v2 cross-encoder lifts another
-    24--35\,pp. Figure~\ref{fig:cum_gains} shows the further v10 gain.}
-  \label{fig:main}
-\end{figure}
 
 \subsection{Why similarity baselines score below 0.5 AUROC}
 
@@ -1031,6 +1011,8 @@ weights, and the miner-robustness experiment at
 from raw GLEIF $\sim$2 hours on one MacBook.
 
 \bibliographystyle{ACM-Reference-Format}
+\renewcommand{\bibfont}{\scriptsize}
+\setlength{\bibsep}{1pt plus 0.5pt minus 0.5pt}
 \bibliography{refs}
 
 \end{document}
