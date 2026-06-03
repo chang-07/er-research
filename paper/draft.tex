@@ -323,11 +323,11 @@ headline evaluation; provided for community use.
 
 We present two methods at different cost-accuracy points. The bi-encoder
 (Section~\ref{ssec:bi}) embeds each side independently and scores by cosine
---- cheap, single-pass inference, but constrained by the anti-correlation
-property of name embeddings on this task. The cross-encoder
-(Section~\ref{ssec:ce}) encodes both records jointly --- 4--10$\times$ more
-expensive per pair at inference time, but escapes the structural
-constraint and provides the headline result.
+--- cheap, single-pass, but hemmed in by the anti-correlation property of
+name embeddings on this task. The cross-encoder (Section~\ref{ssec:ce})
+reads both records together --- 4--10$\times$ more expensive per pair, but
+no longer asked to keep name-different records cosine-close. It produces
+the headline result.
 
 \subsection{Bi-encoder}
 \label{ssec:bi}
@@ -350,10 +350,10 @@ objectives by architectural convention, not strictly controlled.
 \label{ssec:ce}
 
 A bi-encoder has to place each record at a fixed point in
-embedding space. On lifecycle ER that is structurally limiting:
+embedding space. That is a hard ask on lifecycle ER:
 the event generating each positive deliberately changes the record's
-surface form, so the bi-encoder is asked to keep cosine-close two
-records that look very different. A cross-encoder gets to read both
+surface form, so the bi-encoder is being asked to keep cosine-close two
+records that, on the page, look very different. A cross-encoder gets to read both
 records jointly; it can compare specific tokens between them rather
 than each side in isolation.
 
@@ -399,7 +399,7 @@ We compare against four similarity baselines:
 \texttt{tfidf\_char} (char-3gram TF-IDF cosine fit on the union of
 legal names in the benchmark), and \texttt{sentence\_encoder}
 (zero-shot E5-small-v2 cosine on the legal name --- same backbone
-as the method, without fine-tuning). We additionally report two
+as the method, without fine-tuning). We also report two
 zero-shot LLM pairwise baselines on a stratified test-set sample
 (56 / 52 / 50 anchors for TIME / EVENT / JURIS respectively, with
 all candidate pairs per anchor scored): Anthropic's
@@ -409,8 +409,8 @@ Apple Silicon via Ollama. Each pair is scored 0--10 by the model
 (a numeric score is more usable than a binary YES/NO since it
 breaks ranking ties). Per-split Hits@1 + MRR for both models appear
 as separate rows in Table~\ref{tab:main_results}. Paired McNemar's
-tests on per-anchor Hits@1 over the shared sampled anchors confirm
-the cross-encoder advantage is highly significant on every split:
+tests on per-anchor Hits@1 over the shared sampled anchors put the
+cross-encoder gap well outside noise on every split:
 v2 cross-encoder beats Haiku by $+0.35$/$+0.28$/$+0.22$ Hits@1
 ($p < 10^{-4}$ on TIME/EVENT, $p = 3\!\times\!10^{-4}$ on JURIS,
 discordant-pair ratio $\geq 4.5\!:\!1$ in our favour); v10 beats it
@@ -435,8 +435,8 @@ intervals are $\pm$2.2\,pp (TIME), $\pm$2.4\,pp (EVENT), and $\pm$8.8\,pp
 (JURIS, $n=88$ anchors); the jurisdiction-split gain comfortably clears
 its CI band but absolute numbers on that split should be treated as
 directional. Section~\ref{ssec:robustness} retests the headline
-cross-encoder on a structurally different candidate pool and finds the
-gap shrinks but remains substantial; Table~\ref{tab:v7} and
+cross-encoder on a mechanically different candidate pool and finds the
+gap shrinks but does not collapse; Table~\ref{tab:v7} and
 Figure~\ref{fig:cum_gains} extend the L-6 cross-encoder to the v10
 ensemble (the actual best per column, see below).
 
@@ -596,7 +596,7 @@ essentially solved by every method including zero-shot E5-small
 $\to$ 0.62 v2 $\to$ 0.71 v10) and \texttt{ABSORPTION} ($n=461$:
 0.23 $\to$ 0.53 $\to$ 0.65), the cases where the post-event name
 comes from the acquirer rather than the target and pure name
-similarity is structurally unable to bridge the gap. v10 also more
+similarity has nothing to grip onto. v10 also more
 than doubles zero-shot on the small but operationally critical
 \texttt{BREAKUP} subset ($n=7$: 0.14 $\to$ 0.71).
 
@@ -651,14 +651,13 @@ claim about spinoffs.
 \subsection{Robustness to candidate-pool shift}
 \label{ssec:robustness}
 
-The headline cross-encoder result is produced and (mostly) evaluated against
-candidates drawn from the same family of hard-negative miners --- v1
+The headline cross-encoder result is trained and (mostly) evaluated against
+candidates from the same family of hard-negative miners --- v1
 token-overlap and v2 E5-cosine both rank candidates by name-related signals,
-and the cross-encoder is trained on v2 negs. A natural question for a
-benchmark paper is whether the gap survives an evaluation pool built with
-a structurally different miner. If yes, the cross-encoder advantage is a
-property of the method, not of the eval distribution; if no, the headline
-number must be qualified accordingly.
+and the cross-encoder learns on v2 negs. The obvious question: does the gap
+survive an evaluation pool built with a mechanically different miner?  If
+yes, the cross-encoder advantage is a property of the method; if no, the
+headline number is partly an artefact of how the negatives were chosen.
 
 \paragraph{Setup.} We re-mine hard negatives with sparse char-3gram
 TF-IDF cosine (same signal as the \texttt{tfidf\_char} baseline) ---
@@ -708,7 +707,7 @@ at the candidate-pool level.
   \end{tabular}
 \end{table*}
 
-\paragraph{Three findings.} First, the cross-encoder \emph{architecture}
+\paragraph{What the 2$\times$2 tells us.} First, the cross-encoder \emph{architecture}
 generalizes well across miners: the v3-trained cross-encoder evaluated on
 the v2 pool reaches 0.588 / 0.533 / 0.750 Hits@1 --- within 1--4\,pp of
 the v2-trained model on the same pool, despite never having seen E5-mined
@@ -727,10 +726,9 @@ miner if we are willing to retrain the cross-encoder: the diagonal cells
 (in-distribution) show $+20$ to $+40$\,pp gains across all six splits.
 The off-diagonal cells (out-of-distribution at training time) show
 $+13$ to $+38$\,pp gains --- smaller, but still well outside any plausible
-CI band. We read this as: joint encoding is structurally helpful for
-lifecycle-aware ER, but the absolute headline number is partly a function
-of how the evaluation candidate pool is constructed, and the
-``$+24$--$35$\,pp'' figure in the abstract should be qualified accordingly.
+CI band. Joint encoding does real work on lifecycle ER --- but the absolute
+size of the gain depends on how the candidate pool was mined, so the
+``$+24$--$35$\,pp'' figure in the abstract should be read in that light.
 
 \paragraph{Fielded retrieve-then-rerank.} The miner-robustness
 experiment above shifts the mining signal but still draws candidates
@@ -908,8 +906,8 @@ address both.
 
 \subsection{Why this matters in practice}
 
-The benchmark targets a workflow primitive shared by every fintech
-infrastructure company we are aware of: Stripe trains merchant
+The benchmark targets a step that every fintech infrastructure company we
+know runs: Stripe trains merchant
 embeddings~\cite{stripe_ai} and fights AI-driven rebranding
 fraud~\cite{stripe_lp_fraud}; Ramp performs
 vendor deduplication across $\sim$27M spreadsheet cells in its
@@ -951,7 +949,7 @@ retriever --- a learned hybrid sparse-dense index, or a coarsely
 pre-filtered cross-encoder shortlist --- is the highest-leverage
 v3 target.
 
-\paragraph{Seed variance and a small hard-negative label noise.}
+\paragraph{Seed variance and a sliver of mislabeled hard negatives.}
 Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
 (TIME), $0.291 \pm 0.004$ (EVENT), $0.523 \pm 0.016$ (JURIS);
 TIME/EVENT are stable, JURIS varies $\pm$1.6\,pp consistent with
@@ -973,8 +971,8 @@ sample sizes in mind. A secondary auto-classifier check
 confident-positive subset; expert multi-annotator review would give
 a tighter bound.
 
-\paragraph{LLM baselines are sampled, not full test set.}
-Two LLM rows in Table~\ref{tab:main_results} are evaluated on a
+\paragraph{The LLM baselines run on a sample, not the full test set.}
+Both LLM rows in Table~\ref{tab:main_results} are evaluated on a
 stratified test-set sample (56 / 52 / 50 anchors for TIME / EVENT /
 JURIS), with each anchor's full candidate pool scored. Hits@1 95\%
 bootstrap CIs: Haiku 4.5 $\pm$11/13/14\,pp on TIME/EVENT/JURIS;
@@ -988,8 +986,7 @@ Running the closed-API panel on the full benchmark
 ($\approx$\$200) and adding a frontier model would tighten the
 upper-bound estimate; we leave that to a revision with a budget.
 
-\paragraph{Cross-domain transferability + small-$n$ caveat on
-parent/subsidiary.} The cross-encoder underperforms zero-shot E5-small
+\paragraph{The model is specialised, and parent/subsidiary is a thin slice.} The cross-encoder underperforms zero-shot E5-small
 on out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
 Section~\ref{ssec:diagnostics}); the fine-tuned representation is
 specialized to lifecycle ER, not generic. The parent/subsidiary
