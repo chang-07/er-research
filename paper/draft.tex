@@ -30,33 +30,35 @@
 \begin{document}
 
 \begin{abstract}
-We introduce \textsc{TemporalLink}, an open benchmark for
+\textsc{TemporalLink} is an open benchmark for
 \emph{lifecycle-aware} entity resolution on financial entities ---
-matching records across mergers, rebrands, spinoffs, and jurisdiction
-migrations, where the surface form has deliberately changed.
-The benchmark is built from public GLEIF Level-1/2, SEC EDGAR, and
-Wikidata: 125{,}519 labeled pairs over 3.3M entities, with three
+matching records across mergers, rebrands, spinoffs, and
+jurisdiction migrations, where the surface form has deliberately
+changed. It is built from public GLEIF Level-1/2, SEC EDGAR, and
+Wikidata: 125{,}519 labelled pairs over 3.3M entities, three
 held-out evaluation regimes (time, event type, jurisdiction).
 Hard negatives are mined to be \emph{name-similar} to each
-predecessor, and true successors are by construction
-\emph{name-different} --- so on this benchmark name-similarity
+predecessor and true successors are by construction
+\emph{name-different}, so on this benchmark name-similarity
 baselines (token, char-TF-IDF, zero-shot E5) score below 0.5
-AUROC on time and event splits. We emphasise that this is a
-property of how negatives were mined here, not a universal claim
-about name similarity in ER. A fine-tuned MiniLM cross-encoder
-(22M parameters, $\approx$17 min on MPS) is the first method we
-tested that escapes this regime, reaching 60.5 / 56.5 / 75.0\%
-Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI), 24--35\,pp over
-the best bi-encoder. We pair the headline number with a
-miner-robustness re-test that swaps E5-cosine for TF-IDF
-char-3gram mining: the cross-encoder advantage shrinks 5--15\,pp
-under candidate-pool shift but stays $+13$ to $+38$\,pp above
-zero-shot, evidence the gain is partly in-distribution but not
-purely a within-miner artifact. Per-event analysis foregrounds
-where the lift is real (M\&A, absorption: $+30$--$45$\,pp) and
-where it isn't (pure renames are already solved at zero-shot).
-Code, splits, predictions, and trained model weights reproduce
-end-to-end on a single MacBook in $\sim$2 hours.
+AUROC on the time and event splits --- a property of how
+\textsc{TemporalLink} mines negatives, not a universal claim about
+name similarity in ER. A 22M-parameter MiniLM cross-encoder
+fine-tuned in $\approx$17 minutes on MPS is the first method to
+cross 0.5 AUROC here, reaching 60.5 / 56.5 / 75.0\% Hits@1
+($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI), 24--35\,pp over the best
+bi-encoder; paired McNemar's tests against a Claude-Haiku-4.5
+LLM baseline put the gap at $p < 10^{-3}$ on every split. A
+miner-robustness re-test swapping E5-cosine for TF-IDF char-3gram
+mining shrinks the cross-encoder advantage 5--15\,pp but keeps it
+$+13$ to $+38$\,pp above zero-shot. A separate fielded
+retrieve-then-rerank simulation over the full 3.3M-entity universe
+shows end-to-end deployment Hits@1 drops to 15--29\,\% (v2) /
+26--45\,\% (v10): the bi-encoder's Recall@20 of 33--50\,\% caps the
+reranker. Per-event analysis localises the lift to M\&A and
+absorption events ($+30$ to $+45$\,pp); pure renames are already
+solved at zero-shot. Code, splits, predictions, and trained
+weights reproduce end-to-end on a single MacBook in $\sim$2 hours.
 \end{abstract}
 
 \keywords{entity resolution, record linkage, financial entities,
@@ -89,43 +91,39 @@ them?}
 \paragraph{Contributions.}
 \begin{enumerate}
   \item \textbf{An open benchmark for lifecycle-aware financial ER}
-        (Section~\ref{sec:benchmark}). 125{,}519 labeled pairs over
-        3.3M GLEIF Level-1 entities, with hard negatives mined in
-        four classes against 473K GLEIF Level-2 relationships and
-        three held-out evaluation regimes (time, event type,
-        jurisdiction). We document the construction choices that
-        define the difficulty (Section~\ref{sec:benchmark}) and are
-        explicit about what generalises and what doesn't
-        (Section~\ref{sec:limitations}).
+        (Section~\ref{sec:benchmark}): 125{,}519 labelled pairs over
+        3.3M GLEIF Level-1 entities, hard negatives in four classes
+        backed by 473K GLEIF Level-2 relationships, three held-out
+        evaluation regimes (time, event type, jurisdiction). Every
+        construction choice and what it does and doesn't generalise
+        to is documented (\S\ref{sec:benchmark}, \S\ref{sec:limitations}).
 
   \item \textbf{An empirical characterisation} (Section~\ref{sec:experiments}):
-        four similarity baselines score below 0.5 AUROC on the time
-        and event splits --- a direct consequence of our hard-negative
-        construction (similar-name negatives, name-different
-        positives), not a universal claim about name similarity in ER.
-        A 22M-parameter MiniLM cross-encoder, fine-tuned on benchmark
-        positives plus mined hard negatives, is the first method we
-        tested to escape the regime, reaching 60.5 / 56.5 / 75.0\%
-        Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp), 24--35\,pp over the best
+        four similarity baselines fall below 0.5 AUROC on the time
+        and event splits --- a direct consequence of mining
+        same-name negatives against name-different positives, not a
+        universal claim about name similarity in ER. A 22M-parameter
+        MiniLM cross-encoder fine-tuned on benchmark positives and
+        mined hard negatives is the first method here to cross
+        0.5 AUROC, reaching 60.5 / 56.5 / 75.0\% Hits@1
+        ($\pm$2.2 / 2.4 / 8.8\,pp), 24--35\,pp over the best
         bi-encoder. Per-event analysis (\S\ref{ssec:per_event})
-        localises the lift to M\&A / absorption events; pure renames
-        are already at 0.90 Hits@1 zero-shot.
+        localises the lift to M\&A and absorption events; pure
+        renames already sit at 0.90 Hits@1 zero-shot.
 
-  \item \textbf{A miner-robustness check} (Section~\ref{ssec:robustness}).
-        Re-mining hard negatives with TF-IDF char-3gram cosine and
-        re-evaluating the $2{\times}2$ train/test matrix shrinks the
-        cross-encoder advantage 5--15\,pp under candidate-pool shift
-        but keeps it $+13$ to $+38$\,pp above zero-shot on every
-        off-diagonal cell. A separate \emph{fielded retrieve-then-
-        rerank} simulation (\S\ref{ssec:robustness}) --- bi-encoder
-        retrieving top-20 candidates per anchor from the full 3.3M
-        entity universe, cross-encoder reranking --- shows that the
-        in-distribution headline overstates deployment Hits@1
-        ($\approx$15--29\,\% end-to-end for the v2 cross-encoder,
-        26--45\,\% for the v10 ensemble) because the bi-encoder's
-        Recall@20 is only 33--50\,\%. The cross-encoder reranker is
-        not the bottleneck (conditional Hits@1 is 78--91\,\% for
-        v10); the bi-encoder retrieval limit is.
+  \item \textbf{Robustness checks across two candidate-pool shifts}
+        (Section~\ref{ssec:robustness}). Re-mining hard negatives
+        with TF-IDF char-3gram cosine and re-evaluating the
+        $2{\times}2$ train/test matrix shrinks the cross-encoder
+        advantage 5--15\,pp but keeps it $+13$ to $+38$\,pp above
+        zero-shot on every off-diagonal cell. A fielded retrieve-
+        then-rerank simulation --- bi-encoder retrieves top-20
+        candidates per anchor from the full 3.3M-entity universe,
+        cross-encoder reranks --- shows end-to-end deployment
+        Hits@1 falls to 15--29\,\% (v2) / 26--45\,\% (v10): the
+        upstream Recall@20 of 33--50\,\% caps everything. The
+        reranker itself is strong (conditional Hits@1 78--91\,\%
+        for v10); the bi-encoder retrieval limit is the bottleneck.
 \end{enumerate}
 
 The full pipeline reproduces on a single MacBook in $\sim$2 hours
@@ -149,23 +147,22 @@ by~\cite{companyname2vec2022,tfidfopensance2025}. All adopt a
 \emph{snapshot} framing, not lifecycle-spanning matches.
 
 \paragraph{Temporal entity linking.} TempEL~\cite{tempel2022} and
-CYCLE~\cite{cycle2024} introduce time-stratified evaluation for entity
-linking against an evolving knowledge base (Wikipedia). Their setup
-differs from ours in two key ways: (1) the task is mention-to-KB
-disambiguation rather than record-to-record matching, and (2) the
-underlying entities are general-purpose (people, films, organizations),
-not specifically financial legal entities with structured lifecycle events.
+CYCLE~\cite{cycle2024} time-stratify entity linking against an
+evolving Wikipedia, but the task is mention-to-KB disambiguation
+rather than record-to-record matching, and the entities are
+general-purpose (people, films, organisations) rather than financial
+legal entities with structured lifecycle events.
 
 \paragraph{Financial entity knowledge graphs.} Recent work at the ACM
-Conference on AI in Finance constructs knowledge graphs from financial
-filings (FinGraphEx~\cite{fingraphex2025}; FinReflectKG~\cite{finreflectkg2025}).
-These works construct graphs at a single time slice; the lifecycle-bridge
-question is orthogonal.
+Conference on AI in Finance constructs financial-filing knowledge
+graphs (FinGraphEx~\cite{fingraphex2025},
+FinReflectKG~\cite{finreflectkg2025}) at a single time slice; the
+lifecycle-bridge question is orthogonal.
 
-\paragraph{Financial time-series foundation models.} Concurrent
-time-series FMs for financial forecasting (PLUTUS~\cite{plutus2024},
-Bloomberg's Delphyne~\cite{bloomberg_delphyne2025}) address a
-different (but adjacent) problem; we note them only to delimit scope.
+\paragraph{Financial time-series foundation models.}
+PLUTUS~\cite{plutus2024} and Bloomberg's
+Delphyne~\cite{bloomberg_delphyne2025} are adjacent financial-ML
+work on forecasting, mentioned here only to delimit scope.
 
 \section{The TemporalLink Benchmark}
 \label{sec:benchmark}
@@ -330,17 +327,21 @@ objectives by architectural convention, not strictly controlled.
 \subsection{Cross-encoder}
 \label{ssec:ce}
 
-The bi-encoder is constrained to map identity-related-but-not-equal records
-to similar points in a fixed embedding space. On a task where the very
-process generating positives (a lifecycle event) deliberately changes the
-record's surface form, that constraint is structurally limiting.
+A bi-encoder has to place each record at a fixed point in
+embedding space. On lifecycle ER that is structurally limiting:
+the event generating each positive deliberately changes the record's
+surface form, so the bi-encoder is asked to keep cosine-close two
+records that look very different. A cross-encoder gets to read both
+records jointly; it can compare specific tokens between them rather
+than each side in isolation.
 
-We therefore add a second-stage cross-encoder: a joint encoder that ingests
-$(\text{record}_A, \text{record}_B)$ as a single concatenated sequence and
-emits a single relevance logit. We fine-tune
-\texttt{cross-encoder/ms-marco-MiniLM-L-6-v2} (22M parameters) on the same
-positive set (including transitives) plus a 4:1 sample of v2 hard negatives
-per positive, treating positives as label $1.0$ and negatives as label $0.0$.
+We fine-tune a second-stage cross-encoder that ingests
+$(\text{record}_A, \text{record}_B)$ as a single concatenated sequence
+and emits a single relevance logit. The backbone is
+\texttt{cross-encoder/ms-marco-MiniLM-L-6-v2} (22M parameters);
+training uses the same positive set as the bi-encoder (including
+transitives) plus a 4:1 sample of v2 hard negatives per positive,
+with positives labelled $1.0$ and negatives $0.0$.
 Loss: standard binary cross-entropy on the logit. 2 epochs, batch 32, lr
 $2\times 10^{-5}$, 100 warmup steps. v4--v10 extensions
 (\S\ref{ssec:main}) hold architecture/optimizer constant and modify only
@@ -531,42 +532,36 @@ problem more parameters fix.
 \subsection{Why similarity baselines score below 0.5 AUROC}
 
 \texttt{token\_set}, \texttt{tfidf\_char}, and
-\texttt{sentence\_encoder} all reach AUROC below 0.5 on the
+\texttt{sentence\_encoder} all land below 0.5 AUROC on the
 held-out-time and held-out-event-type splits
-(Table~\ref{tab:main_results}). This is a direct consequence of how
-we mined hard negatives: negatives are deliberately name-similar to
-each predecessor, while positives are by construction
-name-different (the lifecycle event changed the name). On this
-benchmark's candidate distribution, name similarity is therefore
-\emph{evidence against} a true successor link --- but only on this
-benchmark's candidate distribution. A version of the same baselines
-evaluated against random negatives would behave as expected. We
-retain the result as the empirical motivation for joint encoding on
-\textsc{TemporalLink} and disavow stronger claims.
+(Table~\ref{tab:main_results}). The cause is mechanical: hard
+negatives are deliberately name-similar to the predecessor while
+positives are by construction name-different, so on this candidate
+distribution name similarity is \emph{evidence against} a true
+successor link. The same baselines evaluated against random
+negatives would behave as expected. The finding motivates joint
+encoding here; we do not extend it to ER in general.
 
-Bi-encoder fine-tunes (\texttt{method\_no\_state},
-\texttt{method\_full}, \texttt{method\_v2\_full}) shift this only
-marginally --- AUROC rises from 0.32 to $\sim$0.45 on the time
-split, still below 0.5; Hits@1 lifts 5--8\,pp over zero-shot but
-remains bounded by the fixed-embedding constraint. The cross-encoder
-is the first method we tested to cross 0.5 AUROC, reaching
-0.83--0.87 across the three splits; the mechanism is joint attention
-across both records, which lets the model reason about
-\emph{whether the differences between them look like a known
-lifecycle-event pattern} rather than asking only whether two
-strings are similar.
+Fine-tuning a bi-encoder helps only marginally: AUROC rises from
+0.32 to $\sim$0.45 on the time split, still below 0.5; Hits@1
+lifts 5--8\,pp over zero-shot but the model still has to place
+each record at a single point in embedding space. The
+cross-encoder is the first method on \textsc{TemporalLink} to
+cross 0.5 AUROC, reaching 0.83--0.87 across the three splits. The
+mechanism is joint attention across both records: the model can
+ask whether the differences between them look like a known
+lifecycle-event pattern, not just whether two strings are similar.
 
 \subsection{Where the lift is real: per-event-type breakdown}
 \label{ssec:per_event}
 
 Aggregate Hits@1 hides large per-event-type variation. The
-cross-encoder is doing real work on M\&A, absorption, and breakup
-events --- the cases where the post-event name comes from the
-acquirer rather than the target, and string-similarity is
-structurally unable to bridge the gap. It is doing essentially
-nothing on pure renames, which are already at 0.90 Hits@1
-zero-shot. This breakdown is the most honest summary of where the
-method earns its lift.
+cross-encoder does real work on M\&A, absorption, and breakup
+events, where the post-event name comes from the acquirer rather
+than the target and string-similarity cannot bridge the gap. On
+pure renames it does essentially nothing --- those are already at
+0.90 Hits@1 zero-shot, since the name change tends to be small
+and similarity carries the day.
 
 \paragraph{On the held-out-time split (Figure~\ref{fig:per_event}),
 the cross-encoder's gain is concentrated in the operationally hard
@@ -629,7 +624,7 @@ spinoffs.
   \end{tabular}
 \end{table}
 
-\subsection{Robustness to the hard-negative miner}
+\subsection{Robustness to candidate-pool shift}
 \label{ssec:robustness}
 
 The headline cross-encoder result is produced and (mostly) evaluated against
@@ -713,79 +708,80 @@ lifecycle-aware ER, but the absolute headline number is partly a function
 of how the evaluation candidate pool is constructed, and the
 ``$+24$--$35$\,pp'' figure in the abstract should be qualified accordingly.
 
-\paragraph{Fielded retrieve-then-rerank.} We additionally simulate a
-deployable two-stage pipeline: the trained \texttt{method\_v2\_full}
-bi-encoder retrieves top-20 candidates per test anchor from the full
-3.3M-entity GLEIF universe (restricted to the anchor's
-jurisdiction, the lightest filter a fielded retrieval system would
-apply), and the cross-encoder reranks. The numbers shift the
-narrative because the upstream retrieval step becomes the
-bottleneck: bi-encoder Recall@20 is only 33.2 / 39.6 / 49.7\% on
-TIME / EVENT / JURIS, capping any reranker. Conditional on
-retrieval succeeding, the v2 cross-encoder picks the true successor
-$\#$1 with 46--58\,\%\ Hits@1 and the v10 ensemble reaches
-78--91\,\%; the reranker is doing real work. The end-to-end
-deployment Hits@1 (\emph{recall} $\times$ \emph{conditional},
-counting un-retrieved truths as automatic misses) is 15--29\,\% for
-the headline v2 cross-encoder and 26--45\,\% for v10 --- well below
-the in-distribution mined-pool 60--75\,\%. This is a confirmation
-of the structural argument in \S\ref{ssec:bi}, not a contradiction:
-the bi-encoder's fixed-embedding limit, which fails to retrieve
-lifecycle-spanning successors by cosine similarity, is precisely
-the deployment bottleneck the anti-correlation analysis predicts.
-Future work: a stronger first-stage retriever (e.g., learned
-hybrid sparse-dense, or itself a cross-encoder running over a
-coarsely pre-filtered shortlist) is the highest-leverage next step.
+\paragraph{Fielded retrieve-then-rerank.} The miner-robustness
+experiment above shifts the mining signal but still draws candidates
+from a curated negative pool. A real deployment pipeline does
+something different: a first-stage retriever pulls the top-K
+candidates from the full entity universe, then a second-stage model
+reranks. We simulate that here. The trained
+\texttt{method\_v2\_full} bi-encoder retrieves top-20 candidates per
+test anchor from the full 3.3M-entity GLEIF universe, restricted to
+the anchor's jurisdiction (the lightest filter a production system
+would apply); the cross-encoder reranks.
+
+Bi-encoder Recall@20 is 33.2 / 39.6 / 49.7\% on TIME / EVENT /
+JURIS. That is the ceiling for any reranker. When the bi-encoder
+does retrieve the true successor, the v2 cross-encoder picks it
+\#1 with 46--58\% Hits@1 and the v10 ensemble reaches 78--91\%
+--- the reranker is the strong link. End-to-end deployment Hits@1
+(recall $\times$ conditional, with un-retrieved truths counted as
+misses) is 15--29\% for v2 and 26--45\% for v10. The drop from
+60--75\% in-distribution to 15--45\% deployment confirms rather
+than contradicts \S\ref{ssec:bi}: the bi-encoder's fixed-embedding
+limit, which fails to retrieve lifecycle-spanning successors by
+cosine similarity, is exactly the bottleneck the anti-correlation
+analysis predicts.
 
 \subsection{Ablations}
 
-Two ablations reported in Table~\ref{tab:main_results}.
+Both ablations are in Table~\ref{tab:main_results}.
 
-\textbf{State features (jurisdiction + legal form in the prompt) help
-modestly.} \texttt{method\_no\_state} loses 1.5--2 pp Hits@1 vs.
-\texttt{method\_full} across all splits. The contribution is largest on the
-held-out-jurisdiction split (where the country token carries the most
-signal) and smallest on the held-out-event-type split (where the
-discriminating signal is in the name change itself).
+\textbf{State features help modestly.} Removing jurisdiction and
+legal form from the prompt (\texttt{method\_no\_state}) costs
+1.5--2\,pp Hits@1 vs.\ \texttt{method\_full} on every split. The
+biggest contribution is on held-out-jurisdiction (where the
+country token does most of the work) and the smallest is on
+held-out-event-type (where the name change itself does it).
 
-\textbf{Explicit hard negatives slightly \emph{hurt} in our v1 setup.}
-\texttt{method\_no\_hard} edges out \texttt{method\_full} by 0.4--1.1 pp
-Hits@1 on every split. The likely culprit is the
-\texttt{token\_overlap\_same\_country} class, which constitutes 92\% of all
-mined hard negatives and is the lowest-precision class. The fuzzy fallback
-injects label noise; the in-batch negatives from MultipleNegativesRanking
-alone are cleaner. This is a publishable observation: it directly motivates
-the v2 hard-negative strategy of replacing token-overlap with sentence-
-encoder-cosine mining, and complicates the common assumption in ER that
-``more hard negatives is always better.''
+\textbf{Explicit hard negatives slightly \emph{hurt} in v1.}
+\texttt{method\_no\_hard} edges out \texttt{method\_full} by 0.4--1.1\,pp
+Hits@1 on every split. The culprit is the
+\texttt{token\_overlap\_same\_country} class, 92\% of all mined v1
+hard negatives and the lowest-precision class --- the fuzzy
+fallback injects label noise, and the in-batch negatives from
+MultipleNegativesRanking are cleaner on their own. This motivates
+the v2 mining switch from token-overlap to E5-cosine, and pushes
+back on the default assumption that more hard negatives is always
+better.
 
 \subsection{Additional diagnostics}
 \label{ssec:diagnostics}
 
-We summarize four diagnostics released in the code repository
-(full tables and figures available there; we are page-limited here).
-\textbf{B-cubed cluster F1}~\cite{binette2024} on the test partition is
-0.92 / 0.90 / 0.91 for the cross-encoder vs.\ $\leq$0.47 for any
-bi-encoder (which collapses to one giant cluster at the tuned
-threshold); restricting to records in true clusters of size $\geq 2$
-(64\% of test records are singletons) gives the honest cross-encoder
-F1 of 0.85 / 0.84 / 0.88. \textbf{Calibration and selective
-prediction.} ECE (10-bin) is 0.20, Brier 0.18 --- over-confidence
-in high-score bins, consistent with recent calibration measurements
-on PLM-based EM~\cite{llmemcalib2025}. A selective-prediction sweep
-(in the sense of~\cite{geifman2017}) on v10 reaches Hits@1
-$\geq$0.94 at 20\% coverage and 0.87--0.97 at 50\% coverage across
-the three splits; consumers needing high precision can threshold on
-the calibrated score without retraining (curve in repo). \textbf{Cross-domain transfer} (zero-shot
-application to Magellan Walmart-Amazon) shows the cross-encoder
-\emph{loses} to its own zero-shot base encoder by 5.9\,pp AUROC,
-evidence the fine-tuned representation is specialized to
+Four diagnostics, compressed to fit the page budget; full tables
+and figures are in the released code.
+\textbf{B-cubed cluster F1}~\cite{binette2024} on the test
+partition is 0.92 / 0.90 / 0.91 for the cross-encoder vs.\
+$\leq$0.47 for any bi-encoder (each of which collapses to one
+giant cluster at the tuned threshold). Restricting to records in
+true clusters of size $\geq 2$ --- 64\% of test records are
+singletons --- gives a more honest 0.85 / 0.84 / 0.88.
+\textbf{Calibration and selective prediction.} ECE (10-bin) is
+0.20, Brier 0.18: the model is over-confident in its high-score
+bin, consistent with recent PLM-EM calibration
+results~\cite{llmemcalib2025}. A
+selective-prediction~\cite{geifman2017} sweep on v10 hits Hits@1
+$\geq 0.94$ at 20\% coverage and 0.87--0.97 at 50\% across the
+three splits; users who need high precision can just threshold on
+the score (curve in repo).
+\textbf{Cross-domain transfer.} Zero-shot Magellan Walmart-Amazon:
+the cross-encoder \emph{loses} to its own zero-shot base encoder
+by 5.9\,pp AUROC. The fine-tuned representation is specialised to
 lifecycle-spanning legal-entity matching, not generic ER.
-\textbf{Secondary label-quality check}: 277 sampled positives
+\textbf{Secondary label-quality check.} 277 sampled positives
 re-classified by an orthogonal heuristic agree with the primary
 GLEIF auto-classifier on 98.7\% [95\% CI 97.0--100\%] of the
-confident (231/277) subset, bounding label noise below 2\% on that
-subset; the remaining 16.6\% were marked uncertain.
+confident (231/277) subset, bounding label noise below 2\% there;
+the other 16.6\% were marked uncertain.
 
 \subsection{Where each method is fooled}
 
@@ -904,17 +900,17 @@ against.
 \section{Limitations and Future Work}
 \label{sec:limitations}
 
-We discuss six major limitations here; the released code includes
-additional analyses (cost/latency, calibration curves, error taxonomy,
-label-quality check) for the interested reader.
+Six limitations; the released code carries the longer versions
+(cost/latency, calibration curves, error taxonomy, label-quality).
 
-\paragraph{The ``anti-correlation'' finding is a construction artifact.}
-Negatives in \textsc{TemporalLink} are mined to be name-similar to the
-predecessor; positives by definition name-different. Sub-0.5 AUROC of
-name-similarity baselines (Section~\ref{sec:experiments}) is the direct
-consequence of that mining design --- not a universal property of name
-similarity in ER. We retain the finding as the empirical motivation for
-joint encoding on \emph{this} benchmark and disavow broader claims.
+\paragraph{The ``anti-correlation'' finding is a construction artefact.}
+Hard negatives in \textsc{TemporalLink} are mined to be
+name-similar to the predecessor; positives are by definition
+name-different. The sub-0.5 AUROC of similarity baselines
+(Section~\ref{sec:experiments}) follows directly from that mining
+design and does not generalise to ER outside this benchmark. The
+finding motivates joint encoding here; it is not a universal claim
+about name similarity in ER.
 
 \paragraph{In-distribution headline overstates deployment.}
 The headline cross-encoder Hits@1 (60--75\,\%) is on the v2 mined
@@ -980,29 +976,32 @@ entities is a v3 target.
 
 \section{Conclusion}
 
-We presented \textsc{TemporalLink}, an open benchmark for
-lifecycle-aware entity resolution on financial entities, built from
-public GLEIF, SEC EDGAR, and Wikidata data and reproducible
-end-to-end on a single MacBook in $\sim$2 hours. Because hard
-negatives are mined to be name-similar to each predecessor and true
-successors are by construction name-different, similarity-based
-baselines score below 0.5 AUROC on the time and event splits ---
-a property of \emph{this} benchmark's construction, not of name
-similarity in ER generally. A small fine-tuned MiniLM cross-encoder
-(22M parameters) is the first method we tested to cross 0.5 AUROC,
-reaching 60--75\% Hits@1, 24--35\,pp above the strongest bi-encoder.
-A miner-robustness re-mine with TF-IDF char-3gram cosine shrinks
-the cross-encoder advantage 5--15\,pp under candidate-pool shift
-but keeps it $+13$ to $+38$\,pp above zero-shot. A prompt-and-
-backbone extension lifts the headline a further $+9$ to $+11$\,pp
-(\S\ref{ssec:main}). The most trustworthy summary is the per-event
-breakdown (\S\ref{ssec:per_event}): the cross-encoder's gain is
-real and large on M\&A, absorption, and breakup events; on pure
-renames every method including zero-shot E5-small is already at
-0.90 Hits@1. Future work: a fully held-out candidate pool from a
-fielded retriever, the full-test-set LLM baseline, an expanded
-held-out-jurisdiction set, and multi-class modeling of
-related-but-distinct entities.
+\textsc{TemporalLink} is an open benchmark for lifecycle-aware
+entity resolution on financial entities, built from public GLEIF,
+SEC EDGAR, and Wikidata data and reproducible end-to-end on a
+single MacBook in $\sim$2 hours. Hard negatives are mined to be
+name-similar to each predecessor and true successors are by
+construction name-different, so similarity-based baselines fall
+below 0.5 AUROC on the time and event splits --- a property of
+this benchmark's construction, not of name similarity in ER
+generally. A 22M-parameter MiniLM cross-encoder is the first
+method here to cross 0.5 AUROC, reaching 60--75\% Hits@1 and
+sitting 24--35\,pp above the strongest bi-encoder; paired McNemar
+tests put the gap over a Claude-Haiku-4.5 LLM baseline at
+$p < 10^{-3}$ on every split. A miner-robustness re-mine with
+TF-IDF char-3gram cosine shrinks the cross-encoder advantage
+5--15\,pp but keeps it $+13$ to $+38$\,pp above zero-shot, and a
+prompt-and-backbone extension lifts the headline a further $+9$ to
+$+11$\,pp. A fielded retrieve-then-rerank simulation over the
+3.3M-entity universe drops end-to-end Hits@1 to 15--29\% (v2) /
+26--45\% (v10) because the bi-encoder's Recall@20 caps at
+33--50\%; the cross-encoder reranker remains strong. Per-event
+analysis is the most honest summary: real gains on M\&A,
+absorption, and breakup events; pure renames are already at 0.90
+Hits@1 zero-shot. The next iteration's biggest lever is a
+stronger first-stage retriever; smaller targets include a
+full-test-set LLM panel, an expanded held-out-jurisdiction set,
+and multi-class modelling of related-but-distinct entities.
 
 \paragraph{Reproducibility.} All code, parsers, prediction artifacts,
 trained model weights, and the miner-robustness experiment are released
