@@ -63,9 +63,9 @@ AUROC on the time and event splits --- a property of how
 \textsc{TemporalLink} mines negatives, not a universal claim about
 name similarity in ER. A 22M-parameter MiniLM cross-encoder
 fine-tuned in $\approx$17 minutes on MPS is the first method to
-cross 0.5 AUROC here, reaching 60.5 / 56.5 / 75.0\% Hits@1
-($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI), 24--35\,pp over the best
-bi-encoder; paired McNemar's tests against a Claude-Haiku-4.5
+clear 0.5 AUROC on those two splits, reaching 60.5 / 56.5 / 75.0\%
+Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI), 24--35\,pp over the
+best bi-encoder; paired McNemar's tests against a Claude-Haiku-4.5
 LLM baseline put the gap at $p < 10^{-3}$ on every split. A
 miner-robustness re-test swapping E5-cosine for TF-IDF char-3gram
 mining shrinks the cross-encoder advantage 5--15\,pp but keeps it
@@ -122,8 +122,9 @@ them?}
         same-name negatives against name-different positives, not a
         universal claim about name similarity in ER. A 22M-parameter
         MiniLM cross-encoder fine-tuned on benchmark positives and
-        mined hard negatives is the first method here to cross
-        0.5 AUROC, reaching 60.5 / 56.5 / 75.0\% Hits@1
+        mined hard negatives is the first method here to clear
+        0.5 AUROC on those two splits, reaching 60.5 / 56.5 / 75.0\%
+        Hits@1
         ($\pm$2.2 / 2.4 / 8.8\,pp), 24--35\,pp over the best
         bi-encoder. Per-event analysis (\S\ref{ssec:per_event})
         localises the lift to M\&A and absorption events; pure
@@ -147,9 +148,10 @@ them?}
 The full pipeline reproduces on a single MacBook in $\sim$2 hours
 --- no GPU, no proprietary data, no paid annotation. A
 prompt-enrichment-plus-ensemble extension that lifts Hits@1 a
-further $+9$ to $+11$\,pp (Section~\ref{ssec:main}) is described
-briefly in the experiments section; the headline result above is
-the single fine-tuned cross-encoder.
+further $+9$ to $+11$\,pp on time/event ($+3$ on jurisdiction, inside
+its CI band; Section~\ref{ssec:main}) is described briefly in the
+experiments section; the headline result above is the single
+fine-tuned cross-encoder.
 
 \section{Related Work}
 
@@ -409,7 +411,7 @@ tests on per-anchor Hits@1 over the shared sampled anchors confirm
 the cross-encoder advantage is highly significant on every split:
 v2 cross-encoder beats Haiku by $+0.35$/$+0.28$/$+0.22$ Hits@1
 ($p < 10^{-4}$ on TIME/EVENT, $p = 3\!\times\!10^{-4}$ on JURIS,
-discordant-pair ratio $\geq 5\!:\!1$ in our favour); v10 beats it
+discordant-pair ratio $\geq 4.5\!:\!1$ in our favour); v10 beats it
 by $+0.46$/$+0.37$/$+0.25$ ($p < 10^{-4}$ on all three splits).
 Against gpt-oss-20b, v10 wins on every JURIS anchor where the two
 disagree ($16/16$ discordant pairs).
@@ -561,11 +563,13 @@ negatives would behave as expected. The finding motivates joint
 encoding here; we do not extend it to ER in general.
 
 Fine-tuning a bi-encoder helps only marginally: AUROC rises from
-0.32 to $\sim$0.45 on the time split, still below 0.5; Hits@1
+0.32 to $\sim$0.41 on time and 0.39 to $\sim$0.46 on event, still
+below 0.5; Hits@1
 lifts 5--8\,pp over zero-shot but the model still has to place
 each record at a single point in embedding space. The
 cross-encoder is the first method on \textsc{TemporalLink} to
-cross 0.5 AUROC, reaching 0.83--0.87 across the three splits. The
+clear 0.5 AUROC on the TIME and EVENT splits where the baselines
+fail (it lands at 0.83--0.87 across all three). The
 mechanism is joint attention across both records: the model can
 ask whether the differences between them look like a known
 lifecycle-event pattern, not just whether two strings are similar.
@@ -604,9 +608,9 @@ held-out type is visible separately. The cross-encoder lift is
 consistent across the absorption-like types (\texttt{ABSORPTION}: 0.22
 $\to$ 0.57, \texttt{DEMERGER}: 0.29 $\to$ 0.55, \texttt{BREAKUP}: 0.15
 $\to$ 0.40); the \texttt{SPINOFF} cell is statistically meaningless at
-$n=4$. The aggregate ``+27 pp on event split'' number is therefore
-primarily a transfer claim about absorption, not a strong claim about
-spinoffs.
+$n=4$. The aggregate ``+34 pp Hits@1 on the event split'' number is
+therefore primarily a transfer claim about absorption, not a strong
+claim about spinoffs.
 
 \begin{figure}[t]
   \centering
@@ -907,12 +911,11 @@ fraud~\cite{stripe_lp_fraud}; Ramp performs
 vendor deduplication across $\sim$27M spreadsheet cells in its
 agentic-accounting product~\cite{finch2025}; Bloomberg's entity
 backbone underpins both its NLP work and the Quant Research
-Delphyne foundation model~\cite{bloomberg_delphyne2025}; Robinhood's
-Cortex assistant reconciles tickers, CIKs, and corporate-action
-histories across pre- and post-event references. Each team reports
-lifecycle-ER failures as recurring operational pain points;
-\textsc{TemporalLink} gives them a public benchmark to evaluate
-against.
+Delphyne foundation model~\cite{bloomberg_delphyne2025}. Each team
+reports lifecycle-ER failures as recurring operational pain points;
+retail brokerages run analogous corporate-action reconciliation across
+pre- and post-event references. \textsc{TemporalLink} gives them a
+public benchmark to evaluate against.
 
 
 \section{Limitations and Future Work}
@@ -1003,14 +1006,15 @@ construction name-different, so similarity-based baselines fall
 below 0.5 AUROC on the time and event splits --- a property of
 this benchmark's construction, not of name similarity in ER
 generally. A 22M-parameter MiniLM cross-encoder is the first
-method here to cross 0.5 AUROC, reaching 60--75\% Hits@1 and
-sitting 24--35\,pp above the strongest bi-encoder; paired McNemar
+method here to clear 0.5 AUROC on those two splits, reaches
+60--75\% Hits@1 across all three, and sits 24--35\,pp above the
+strongest bi-encoder; paired McNemar
 tests put the gap over a Claude-Haiku-4.5 LLM baseline at
 $p < 10^{-3}$ on every split. A miner-robustness re-mine with
 TF-IDF char-3gram cosine shrinks the cross-encoder advantage
 5--15\,pp but keeps it $+13$ to $+38$\,pp above zero-shot, and a
 prompt-and-backbone extension lifts the headline a further $+9$ to
-$+11$\,pp. A fielded retrieve-then-rerank simulation over the
+$+11$\,pp on time/event. A fielded retrieve-then-rerank simulation over the
 3.3M-entity universe drops end-to-end Hits@1 to 15--29\% (v2) /
 26--45\% (v10) because the bi-encoder's Recall@20 caps at
 33--50\%; the cross-encoder reranker remains strong. Per-event
@@ -1021,12 +1025,10 @@ stronger first-stage retriever; smaller targets include a
 full-test-set LLM panel, an expanded held-out-jurisdiction set,
 and multi-class modelling of related-but-distinct entities.
 
-\paragraph{Reproducibility.} All code, parsers, prediction artifacts,
-trained model weights, and the miner-robustness experiment are released
-at \url{https://github.com/chang-07/er-research}. End-to-end pipeline
-reproduction from the raw GLEIF XML --- benchmark, both methods, v3
-robustness, and the v10 ensemble --- takes $\sim$2 hours on a single
-MacBook laptop.
+\paragraph{Reproducibility.} Code, parsers, predictions, trained
+weights, and the miner-robustness experiment are at
+\url{https://github.com/chang-07/er-research}; end-to-end reproduction
+from raw GLEIF takes $\sim$2 hours on a single MacBook.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{refs}
