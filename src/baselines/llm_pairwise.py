@@ -172,6 +172,10 @@ def main():
                     help="(legacy, unused with concurrency>1) approx req/s cap")
     ap.add_argument("--concurrency", type=int, default=16,
                     help="number of in-flight API requests")
+    ap.add_argument("--no-think", action="store_true",
+                    help="for Qwen3 thinking models: append '/no_think' to the "
+                         "user prompt so the model skips its reasoning trace "
+                         "(10x speedup; small quality cost).")
     args = ap.parse_args()
 
     if args.provider == "anthropic":
@@ -312,6 +316,8 @@ def main():
             b_country=b.get("legal_addr_country", "") or "(unknown)",
             b_form=b.get("legal_form_code", "") or "(unknown)",
         )
+        if args.no_think:
+            user = user + " /no_think"
         try:
             resp = call(PROMPT_SYSTEM, user)
             score, raw = parse_response(resp)

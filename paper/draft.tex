@@ -368,17 +368,17 @@ We compare against four similarity baselines:
 \texttt{tfidf\_char} (char-3gram TF-IDF cosine fit on the union of
 legal names in the benchmark), and \texttt{sentence\_encoder}
 (zero-shot E5-small-v2 cosine on the legal name --- same backbone
-as the method, without fine-tuning).
-% TODO(LLM baseline): insert sampled frontier-LLM baseline here
-% Numbers from the 5\% Claude Haiku 4.5 / Sonnet 4.5 / GPT-4o-mini
-% panel run go in a new row of Table~\ref{tab:main_results}, with
-% the panel methodology described in a third paragraph below.
-We additionally report a frontier-LLM pairwise baseline
-(\texttt{llm\_panel}) on a 5\% test-set sample: each pair scored
-0--1 by three frontier models (Claude Haiku 4.5, Claude Sonnet 4.5,
-GPT-4o-mini), aggregated by mean. Hits@1 with bootstrap CIs is
-reported in Table~\ref{tab:main_results}; the panel run cost
-$\approx$\$10 in API spend.
+as the method, without fine-tuning). We additionally report two
+zero-shot LLM pairwise baselines on a stratified test-set sample
+(56 / 52 / 50 anchors for TIME / EVENT / JURIS respectively, with
+all candidate pairs per anchor scored): Anthropic's
+\textbf{Claude Haiku 4.5} via API ($\approx$\$1.50 spend with
+prompt-caching) and OpenAI's \textbf{gpt-oss-20b} run locally on
+Apple Silicon via Ollama. Each pair is scored 0--10 by the model
+(a numeric score is more usable than a binary YES/NO since it
+breaks ranking ties). Per-split Hits@1 + MRR for both models appear
+as separate rows in Table~\ref{tab:main_results}; bootstrap 95\%
+CIs on the sampled Hits@1 are reported in the limitations section.
 
 \subsection{Metrics}
 
@@ -428,10 +428,9 @@ ensemble (the actual best per column, see below).
     \texttt{tfidf\_char}            & 0.277 & 0.176 & 0.359 & 0.349 & 0.204 & 0.381 & 0.568 & 0.421 & 0.583 \\
     \texttt{sentence\_encoder}      & 0.315 & 0.202 & 0.384 & 0.386 & 0.224 & 0.403 & 0.648 & 0.432 & 0.587 \\
     \midrule
-    \multicolumn{10}{l}{\emph{LLM pairwise baselines (sampled: 50 anchors per TIME/EVENT split, all 88 JURIS anchors)}} \\
-    \texttt{Claude Haiku 4.5} (closed, API)        & --- & TBD\textsubscript{H} & TBD\textsubscript{H} & --- & TBD\textsubscript{H} & TBD\textsubscript{H} & --- & TBD\textsubscript{H} & TBD\textsubscript{H} \\
-    \texttt{gpt-oss-20b} (open, local)             & --- & TBD\textsubscript{G} & TBD\textsubscript{G} & --- & TBD\textsubscript{G} & TBD\textsubscript{G} & --- & TBD\textsubscript{G} & TBD\textsubscript{G} \\
-    \texttt{Qwen 3 32B} (open, local)              & --- & TBD\textsubscript{Q} & TBD\textsubscript{Q} & --- & TBD\textsubscript{Q} & TBD\textsubscript{Q} & --- & TBD\textsubscript{Q} & TBD\textsubscript{Q} \\
+    \multicolumn{10}{l}{\emph{LLM pairwise (sampled: 56 / 52 / 50 anchors per TIME / EVENT / JURIS split, scored on every candidate pair)}} \\
+    \texttt{Claude Haiku 4.5} (closed, API)        & --- & 0.214 & 0.371 & --- & 0.231 & 0.418 & --- & 0.480 & 0.645 \\
+    \texttt{gpt-oss-20b} (open, local Ollama)      & --- & 0.179 & 0.351 & --- & 0.173 & 0.369 & --- & 0.440 & 0.632 \\
     \midrule
     \texttt{method\_no\_state}      & 0.392 & 0.238 & 0.412 & 0.443 & 0.265 & 0.436 & 0.619 & 0.489 & 0.626 \\
     \texttt{method\_full} (v1)      & 0.403 & 0.254 & 0.424 & 0.451 & 0.287 & 0.448 & 0.667 & 0.500 & 0.627 \\
@@ -918,15 +917,20 @@ sample sizes in mind. A secondary auto-classifier check
 confident-positive subset; expert multi-annotator review would give
 a tighter bound.
 
-\paragraph{LLM baseline is a sampled panel, not the full test set.}
-The frontier-LLM baseline reported in Table~\ref{tab:main_results}
-is a 3-model panel on a 5\% test-set sample ($\approx$\$10 in API
-spend). The sample is stratified by held-out regime but small;
-running the panel on the full benchmark ($\approx$\$200) and
-adding GPT-4o / Opus-class models would tighten the upper-bound
-estimate. We do not currently claim the cross-encoder beats
-frontier LLMs --- only that it sits at a competitive
-cost/accuracy point, with full numbers in the table.
+\paragraph{LLM baselines are sampled, not full test set.}
+Two LLM rows in Table~\ref{tab:main_results} are evaluated on a
+stratified test-set sample (56 / 52 / 50 anchors for TIME / EVENT /
+JURIS), with each anchor's full candidate pool scored. Hits@1 95\%
+bootstrap CIs: Haiku 4.5 $\pm$11/13/14\,pp on TIME/EVENT/JURIS;
+gpt-oss-20b $\pm$10/11/14\,pp. Both LLMs trail the fine-tuned
+cross-encoder by 30--40\,pp on every split --- a gap larger than
+the LLM-row CI bands. We did not run a Sonnet / Opus / GPT-4o-class
+upper-bound model: an in-progress qwen3-32b run was abandoned when
+Apple-Silicon throughput proved impractical (\textgreater3\,h
+wall-time for the 1{,}165 sampled pairs even with thinking disabled).
+Running the closed-API panel on the full benchmark
+($\approx$\$200) and adding a frontier model would tighten the
+upper-bound estimate; we leave that to a revision with a budget.
 
 \paragraph{Cross-domain transferability + small-$n$ caveat on
 parent/subsidiary.} The cross-encoder underperforms zero-shot E5-small
