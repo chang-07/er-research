@@ -116,9 +116,16 @@ them?}
         re-evaluating the $2{\times}2$ train/test matrix shrinks the
         cross-encoder advantage 5--15\,pp under candidate-pool shift
         but keeps it $+13$ to $+38$\,pp above zero-shot on every
-        off-diagonal cell. The gain is partly in-distribution but
-        not purely a within-miner artefact; we are explicit that a
-        fully held-out candidate pool would be a stronger test.
+        off-diagonal cell. A separate \emph{fielded retrieve-then-
+        rerank} simulation (\S\ref{ssec:robustness}) --- bi-encoder
+        retrieving top-20 candidates per anchor from the full 3.3M
+        entity universe, cross-encoder reranking --- shows that the
+        in-distribution headline overstates deployment Hits@1
+        ($\approx$15--29\,\% end-to-end for the v2 cross-encoder,
+        26--45\,\% for the v10 ensemble) because the bi-encoder's
+        Recall@20 is only 33--50\,\%. The cross-encoder reranker is
+        not the bottleneck (conditional Hits@1 is 78--91\,\% for
+        v10); the bi-encoder retrieval limit is.
 \end{enumerate}
 
 The full pipeline reproduces on a single MacBook in $\sim$2 hours
@@ -699,14 +706,29 @@ lifecycle-aware ER, but the absolute headline number is partly a function
 of how the evaluation candidate pool is constructed, and the
 ``$+24$--$35$\,pp'' figure in the abstract should be qualified accordingly.
 
-\paragraph{What this does and doesn't rule out.} Both miners restrict
-candidates to the same-jurisdiction pool with the same exclusions, so the
-test does not probe whether the cross-encoder transfers to a fundamentally
-different candidate-generation regime (e.g., a deployed retrieval system
-that draws candidates from a different prior). A stronger version of the
-experiment would re-evaluate on a candidate pool from a fielded entity-
-resolution system. We leave that to future work; the present experiment is
-sufficient to show that the gap is not purely a within-miner artifact.
+\paragraph{Fielded retrieve-then-rerank.} We additionally simulate a
+deployable two-stage pipeline: the trained \texttt{method\_v2\_full}
+bi-encoder retrieves top-20 candidates per test anchor from the full
+3.3M-entity GLEIF universe (restricted to the anchor's
+jurisdiction, the lightest filter a fielded retrieval system would
+apply), and the cross-encoder reranks. The numbers shift the
+narrative because the upstream retrieval step becomes the
+bottleneck: bi-encoder Recall@20 is only 33.2 / 39.6 / 49.7\% on
+TIME / EVENT / JURIS, capping any reranker. Conditional on
+retrieval succeeding, the v2 cross-encoder picks the true successor
+$\#$1 with 46--58\,\%\ Hits@1 and the v10 ensemble reaches
+78--91\,\%; the reranker is doing real work. The end-to-end
+deployment Hits@1 (\emph{recall} $\times$ \emph{conditional},
+counting un-retrieved truths as automatic misses) is 15--29\,\% for
+the headline v2 cross-encoder and 26--45\,\% for v10 --- well below
+the in-distribution mined-pool 60--75\,\%. This is a confirmation
+of the structural argument in \S\ref{ssec:bi}, not a contradiction:
+the bi-encoder's fixed-embedding limit, which fails to retrieve
+lifecycle-spanning successors by cosine similarity, is precisely
+the deployment bottleneck the anti-correlation analysis predicts.
+Future work: a stronger first-stage retriever (e.g., learned
+hybrid sparse-dense, or itself a cross-encoder running over a
+coarsely pre-filtered shortlist) is the highest-leverage next step.
 
 \subsection{Ablations}
 
@@ -887,13 +909,19 @@ consequence of that mining design --- not a universal property of name
 similarity in ER. We retain the finding as the empirical motivation for
 joint encoding on \emph{this} benchmark and disavow broader claims.
 
-\paragraph{In-distribution evaluation risk is mitigated but not
-eliminated.} The miner-robustness experiment
-(Section~\ref{ssec:robustness}) tests whether the cross-encoder gain
-survives a structurally orthogonal hard-negative miner; the gap shrinks
-5--15\,pp but remains $+13$ to $+38$\,pp over baselines. A fully
-held-out candidate pool (e.g., a deployment-time retriever) would be
-a stronger test that we leave to future work.
+\paragraph{In-distribution headline overstates deployment.}
+The headline cross-encoder Hits@1 (60--75\,\%) is on the v2 mined
+candidate pool; on a fielded retrieve-then-rerank pipeline that
+draws candidates from the full 3.3M-entity GLEIF universe
+(\S\ref{ssec:robustness}), end-to-end Hits@1 falls to 15--29\,\%
+(v2) / 26--45\,\% (v10). The cause is upstream: bi-encoder
+Recall@20 is 33--50\,\%, so the reranker often never sees the true
+successor. The miner-robustness experiment shows the cross-encoder
+gain itself is partly in-distribution but not purely a within-miner
+artefact ($+13$ to $+38$\,pp off-diagonal). A stronger first-stage
+retriever --- a learned hybrid sparse-dense index, or a coarsely
+pre-filtered cross-encoder shortlist --- is the highest-leverage
+v3 target.
 
 \paragraph{Seed variance and a small hard-negative label noise.}
 Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
