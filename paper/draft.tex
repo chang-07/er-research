@@ -72,7 +72,7 @@ mining shrinks the cross-encoder advantage 5--15\,pp but keeps it
 $+13$ to $+38$\,pp above zero-shot. A separate fielded
 retrieve-then-rerank simulation over the full 3.3M-entity universe
 shows end-to-end deployment Hits@1 drops to 15--29\,\% (v2) /
-26--45\,\% (v10): the bi-encoder's Recall@20 of 33--50\,\% caps the
+17--30\,\% (v10): the bi-encoder's Recall@20 of 33--50\,\% caps the
 reranker. Per-event analysis localises the lift to M\&A and
 absorption events ($+30$ to $+45$\,pp); pure renames are already
 solved at zero-shot. Code, splits, predictions, and trained
@@ -140,10 +140,11 @@ them?}
         then-rerank simulation --- bi-encoder retrieves top-20
         candidates per anchor from the full 3.3M-entity universe,
         cross-encoder reranks --- shows end-to-end deployment
-        Hits@1 falls to 15--29\,\% (v2) / 26--45\,\% (v10): the
-        upstream Recall@20 of 33--50\,\% caps everything. The
-        reranker itself is strong (conditional Hits@1 78--91\,\%
-        for v10); the bi-encoder retrieval limit is the bottleneck.
+        Hits@1 falls to 15--29\,\% (v2) / 17--30\,\% (v10): the
+        upstream Recall@20 of 33--50\,\% caps everything. Conditional
+        Hits@1 (given truth in top-20) is 46--58\,\% for v2 and
+        53--60\,\% for v10 --- the v2/v10 reranker gap is small once
+        retrieval is the bottleneck.
 \end{enumerate}
 
 The full pipeline reproduces on a single MacBook in $\sim$2 hours
@@ -743,13 +744,15 @@ the anchor's jurisdiction (the lightest filter a production system
 would apply); the cross-encoder reranks.
 
 Bi-encoder Recall@20 is 33.2 / 39.6 / 49.7\% on TIME / EVENT /
-JURIS. That is the ceiling for any reranker. When the bi-encoder
+JURIS. That is the hard ceiling for any reranker. When the bi-encoder
 does retrieve the true successor, the v2 cross-encoder picks it
-\#1 with 46--58\% Hits@1 and the v10 ensemble reaches 78--91\%
---- the reranker is the strong link. End-to-end deployment Hits@1
-(recall $\times$ conditional, with un-retrieved truths counted as
-misses) is 15--29\% for v2 and 26--45\% for v10. The drop from
-56--75\% in-distribution to 15--45\% deployment confirms rather
+\#1 with 46--58\% Hits@1 and the v10 ensemble reaches 53--60\% ---
+both rerankers re-score the actual fielded candidates, and the v10
+gain over v2 is modest once the bi-encoder distractors look
+genuinely lifecycle-plausible. End-to-end deployment Hits@1
+(recall $\times$ conditional, un-retrieved truths counted as
+misses) is 15--29\% for v2 and 17--30\% for v10. The drop from
+56--75\% in-distribution to 15--30\% deployment confirms rather
 than contradicts \S\ref{ssec:bi}: the bi-encoder's fixed-embedding
 limit, which fails to retrieve lifecycle-spanning successors by
 cosine similarity, is exactly the bottleneck the anti-correlation
@@ -894,7 +897,7 @@ for ``Deutsche Bank'' --- an external knowledge fact a 33M-parameter
 encoder is unlikely to memorize from name strings alone.
 
 \paragraph{v10 residual JURIS failures cluster on sibling
-consolidation.} Of the 20 / 161 anchors v10 mis-ranks on JURIS,
+consolidation.} Of the 19 / 88 anchors v10 mis-ranks on JURIS,
 $\geq$11 are sibling consolidations (e.g., 9 ``\texttt{EPIC <port>
 PTE.\ LTD.}'' Singapore ships into \texttt{BW EPIC KOSAN VESSELS
 ONE}; the model returns sibling \texttt{EPIC} vessels); a second
@@ -939,7 +942,7 @@ The headline cross-encoder Hits@1 (56--75\,\%) is on the v2 mined
 candidate pool; on a fielded retrieve-then-rerank pipeline that
 draws candidates from the full 3.3M-entity GLEIF universe
 (\S\ref{ssec:robustness}), end-to-end Hits@1 falls to 15--29\,\%
-(v2) / 26--45\,\% (v10). The cause is upstream: bi-encoder
+(v2) / 17--30\,\% (v10). The cause is upstream: bi-encoder
 Recall@20 is 33--50\,\%, so the reranker often never sees the true
 successor. The miner-robustness experiment shows the cross-encoder
 gain itself is partly in-distribution but not purely a within-miner
@@ -1017,8 +1020,9 @@ TF-IDF char-3gram cosine shrinks the cross-encoder advantage
 prompt-and-backbone extension lifts the headline a further $+9$ to
 $+11$\,pp on time/event. A fielded retrieve-then-rerank simulation over the
 3.3M-entity universe drops end-to-end Hits@1 to 15--29\% (v2) /
-26--45\% (v10) because the bi-encoder's Recall@20 caps at
-33--50\%; the cross-encoder reranker remains strong. Per-event
+17--30\% (v10) because the bi-encoder's Recall@20 caps at
+33--50\%; the cross-encoder reranker is solid but cannot recover what
+retrieval drops. Per-event
 analysis is the most honest summary: real gains on M\&A,
 absorption, and breakup events; pure renames are already at 0.90
 Hits@1 zero-shot. The next iteration's biggest lever is a
