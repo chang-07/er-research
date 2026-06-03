@@ -13,7 +13,25 @@
 % Let LaTeX stretch lines more aggressively before overflowing margins.
 % Sigconf double-column is narrow; without this, long unbreakable tokens
 % (model names, snake_case identifiers) routinely overrun.
-\emergencystretch=3em
+\emergencystretch=4em
+\tolerance=1500
+
+% Override LaTeX's default break points for terms that frequently land
+% mid-line in this column width. Without these, "fielded retrieve-then-
+% rerank" and similar long compound words get ugly mid-word breaks.
+\hyphenation{
+  re-trieve-then-re-rank
+  re-trieve-then-rer-ank
+  cross-en-co-der
+  bi-en-co-der
+  par-ent-sub-si-di-ary
+  sub-si-di-ary
+  con-struc-tion
+  embed-ding
+  snap-shot
+  regis-tra-tion
+  con-cen-trat-ed
+}
 
 \hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=blue}
 
@@ -337,11 +355,12 @@ than each side in isolation.
 
 We fine-tune a second-stage cross-encoder that ingests
 $(\text{record}_A, \text{record}_B)$ as a single concatenated sequence
-and emits a single relevance logit. The backbone is
-\texttt{cross-encoder/ms-marco-MiniLM-L-6-v2} (22M parameters);
-training uses the same positive set as the bi-encoder (including
-transitives) plus a 4:1 sample of v2 hard negatives per positive,
-with positives labelled $1.0$ and negatives $0.0$.
+and emits a single relevance logit. The backbone is the
+22M-parameter \texttt{ms-marco-\allowbreak MiniLM-L-6-v2} cross-encoder
+from HuggingFace; training uses the same positive set as the
+bi-encoder (including transitives) plus a 4:1 sample of v2 hard
+negatives per positive, with positives labelled $1.0$ and negatives
+$0.0$.
 Loss: standard binary cross-entropy on the logit. 2 epochs, batch 32, lr
 $2\times 10^{-5}$, 100 warmup steps. v4--v10 extensions
 (\S\ref{ssec:main}) hold architecture/optimizer constant and modify only
@@ -480,22 +499,21 @@ JURIS); the headline result we report against baselines remains
 the single L-6 cross-encoder so the comparison is apples-to-apples.
 
 \begin{table}[t]
-  \centering\footnotesize
-  \setlength{\tabcolsep}{3pt}
+  \centering\scriptsize
+  \setlength{\tabcolsep}{2.5pt}
   \caption{Cross-encoder extensions: Hits@1 [95\% bootstrap CI].
-    Headline L-6 row repeated from Table~\ref{tab:main_results}.
-    Intermediate variants are plotted in
-    Figure~\ref{fig:cum_gains}.}
+    Headline L-6 row repeated from Table~\ref{tab:main_results};
+    intermediates plotted in Figure~\ref{fig:cum_gains}.}
   \label{tab:v7}
   \begin{tabular}{@{}l c c c@{}}
     \toprule
     Model & TIME & EVENT & JURIS \\
     \midrule
-    Headline cross-encoder (L-6, 22M)  & .605 [.586,.627] & .564 [.542,.589] & .750 [.659,.830] \\
-    + enriched prompt                  & .675 [.653,.697] & .641 [.620,.662] & .750 [.659,.830] \\
-    + Wikidata-LEI training pairs      & .694 [.669,.712] & .651 [.630,.673] & .773 [.682,.853] \\
-    + L-12 backbone (60M)              & .697 [.678,.716] & .676 [.657,.697] & .761 [.670,.841] \\
-    \textbf{Ensemble (L-6 $\times$ L-12)} & \textbf{.700 [.681,.718]} & \textbf{.677 [.656,.700]} & \textbf{.784 [.682,.864]} \\
+    Cross-encoder (L-6, 22M)        & .605 [.586,.627] & .564 [.542,.589] & .750 [.659,.830] \\
+    + enriched prompt               & .675 [.653,.697] & .641 [.620,.662] & .750 [.659,.830] \\
+    + Wikidata-LEI positives        & .694 [.669,.712] & .651 [.630,.673] & .773 [.682,.853] \\
+    + L-12 backbone (60M)           & .697 [.678,.716] & .676 [.657,.697] & .761 [.670,.841] \\
+    \textbf{Ensemble L-6$\times$L-12} & \textbf{.700 [.681,.718]} & \textbf{.677 [.656,.700]} & \textbf{.784 [.682,.864]} \\
     \bottomrule
   \end{tabular}
 \end{table}
