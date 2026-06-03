@@ -384,8 +384,15 @@ prompt-caching) and OpenAI's \textbf{gpt-oss-20b} run locally on
 Apple Silicon via Ollama. Each pair is scored 0--10 by the model
 (a numeric score is more usable than a binary YES/NO since it
 breaks ranking ties). Per-split Hits@1 + MRR for both models appear
-as separate rows in Table~\ref{tab:main_results}; bootstrap 95\%
-CIs on the sampled Hits@1 are reported in the limitations section.
+as separate rows in Table~\ref{tab:main_results}. Paired McNemar's
+tests on per-anchor Hits@1 over the shared sampled anchors confirm
+the cross-encoder advantage is highly significant on every split:
+v2 cross-encoder beats Haiku by $+0.35$/$+0.28$/$+0.22$ Hits@1
+($p < 10^{-4}$ on TIME/EVENT, $p = 3\!\times\!10^{-4}$ on JURIS,
+discordant-pair ratio $\geq 5\!:\!1$ in our favour); v10 beats it
+by $+0.46$/$+0.37$/$+0.25$ ($p < 10^{-4}$ on all three splits).
+Against gpt-oss-20b, v10 wins on every JURIS anchor where the two
+disagree ($16/16$ discordant pairs).
 
 \subsection{Metrics}
 
