@@ -71,12 +71,15 @@ the lift concentrates on M\&A, absorption, and breakup
 ($+30$ to $+45$\,pp), while pure renames are already at 0.90
 Hits@1 zero-shot.
 
-Two robustness checks qualify the headline. Re-mining negatives
-with TF-IDF char-3gram cosine shrinks the cross-encoder advantage
+Three caveats qualify the headline. Re-mining negatives with
+TF-IDF char-3gram cosine shrinks the cross-encoder advantage
 5--15\,pp but keeps it $+13$ to $+38$\,pp above zero-shot. A
 fielded retrieve-then-rerank simulation over the full 3.3M-entity
 universe drops end-to-end Hits@1 to 15--30\,\%: the bi-encoder's
-Recall@20 of 33--50\,\% is the upstream bottleneck. Code, splits,
+Recall@20 of 33--50\,\% is the upstream bottleneck. Against a
+Sonnet-4.6 LLM baseline the cross-encoder gap is decisive only
+on the absorption-heavy EVENT split ($p = 0.004$); on TIME and
+JURIS we cannot distinguish the two. Code, splits,
 predictions, and trained weights reproduce on a single MacBook
 in $\sim$2 hours.
 \end{abstract}
@@ -400,24 +403,32 @@ We compare against four similarity baselines:
 \texttt{tfidf\_char} (char-3gram TF-IDF cosine fit on the union of
 legal names in the benchmark), and \texttt{sentence\_encoder}
 (zero-shot E5-small-v2 cosine on the legal name --- same backbone
-as the method, without fine-tuning). We also report two
+as the method, without fine-tuning). We also report three
 zero-shot LLM pairwise baselines on a stratified test-set sample
 (56 / 52 / 50 anchors for TIME / EVENT / JURIS respectively, with
 all candidate pairs per anchor scored): Anthropic's
 \textbf{Claude Haiku 4.5} via API ($\approx$\$1.50 spend with
-prompt-caching) and OpenAI's \textbf{gpt-oss-20b} run locally on
+prompt-caching), Anthropic's \textbf{Claude Sonnet 4.6} run through
+Claude Code subagents (no API spend, $\approx$444K tokens against
+the user's plan), and OpenAI's \textbf{gpt-oss-20b} run locally on
 Apple Silicon via Ollama. Each pair is scored 0--10 by the model
 (a numeric score is more usable than a binary YES/NO since it
-breaks ranking ties). Per-split Hits@1 + MRR for both models appear
-as separate rows in Table~\ref{tab:main_results}. Paired McNemar's
-tests on per-anchor Hits@1 over the shared sampled anchors put the
-cross-encoder gap well outside noise on every split:
-v2 cross-encoder beats Haiku by $+0.35$/$+0.28$/$+0.22$ Hits@1
-($p < 10^{-4}$ on TIME/EVENT, $p = 3\!\times\!10^{-4}$ on JURIS,
-discordant-pair ratio $\geq 4.5\!:\!1$ in our favour); v10 beats it
-by $+0.46$/$+0.37$/$+0.25$ ($p < 10^{-4}$ on all three splits).
-Against gpt-oss-20b, v10 wins on every JURIS anchor where the two
-disagree ($16/16$ discordant pairs).
+breaks ranking ties). Per-split Hits@1 + MRR for all three appear
+in Table~\ref{tab:main_results}.
+
+Paired McNemar tests on per-anchor Hits@1 (shared anchors)
+separate the comparisons cleanly. Versus Haiku and gpt-oss-20b,
+the cross-encoder gap clears noise on every split (Haiku
+$p < 10^{-4}$ on TIME/EVENT, $p = 3\!\times\!10^{-4}$ on JURIS,
+discordant $\geq 4.5\!:\!1$; $16/16$ JURIS discordant pairs go to
+v10 over gpt-oss). Sonnet 4.6 is tighter: v2 wins EVENT decisively
+($+0.31$, $p = 0.004$) but TIME ($+0.11$, $p = 0.26$) and JURIS
+($+0.08$, $p = 0.45$) are within sample noise. The L-6$\times$L-12
+ensemble clears noise on TIME ($+0.25$, $p = 0.004$) and EVENT
+($+0.35$, $p < 10^{-3}$) but not JURIS ($+0.14$, $p = 0.12$). The
+cross-encoder dominates the absorption-heavy split where lifecycle
+reasoning is hardest; on the 50-anchor JURIS sample we cannot
+distinguish it from a frontier LLM.
 
 \subsection{Metrics}
 
@@ -470,6 +481,7 @@ ensemble (the actual best per column, see below).
     \midrule
     \multicolumn{10}{l}{\emph{LLM pairwise (sampled: 56 / 52 / 50 anchors per TIME / EVENT / JURIS split, scored on every candidate pair)}} \\
     \texttt{Claude Haiku 4.5} (closed, API)        & --- & 0.214 & 0.371 & --- & 0.231 & 0.418 & --- & 0.480 & 0.645 \\
+    \texttt{Claude Sonnet 4.6} (closed, CC subagents) & --- & 0.375 & 0.511 & --- & 0.250 & 0.435 & --- & 0.620 & 0.747 \\
     \texttt{gpt-oss-20b} (open, local Ollama)      & --- & 0.179 & 0.351 & --- & 0.173 & 0.369 & --- & 0.440 & 0.632 \\
     \midrule
     \texttt{method\_no\_state}      & 0.392 & 0.238 & 0.412 & 0.443 & 0.265 & 0.436 & 0.619 & 0.489 & 0.626 \\
@@ -969,19 +981,15 @@ confident-positive subset; expert multi-annotator review would give
 a tighter bound.
 
 \paragraph{The LLM baselines run on a sample, not the full test set.}
-Both LLM rows in Table~\ref{tab:main_results} are evaluated on a
-stratified test-set sample (56 / 52 / 50 anchors for TIME / EVENT /
-JURIS), with each anchor's full candidate pool scored. Hits@1 95\%
-bootstrap CIs: Haiku 4.5 $\pm$11/13/14\,pp on TIME/EVENT/JURIS;
-gpt-oss-20b $\pm$10/11/14\,pp. Both LLMs trail the fine-tuned
-cross-encoder by 30--40\,pp on every split --- a gap larger than
-the LLM-row CI bands. We did not run a Sonnet / Opus / GPT-4o-class
-upper-bound model: an in-progress qwen3-32b run was abandoned when
-Apple-Silicon throughput proved impractical (\textgreater3\,h
-wall-time for the 1{,}165 sampled pairs even with thinking disabled).
-Running the closed-API panel on the full benchmark
-($\approx$\$200) and adding a frontier model would tighten the
-upper-bound estimate; we leave that to a revision with a budget.
+All three LLM rows in Table~\ref{tab:main_results} are evaluated on
+the same stratified test-set sample (56 / 52 / 50 anchors for TIME /
+EVENT / JURIS), with each anchor's full candidate pool scored.
+Hits@1 95\% bootstrap CIs run $\pm$10--14\,pp across the LLM rows.
+Sonnet 4.6 nearly closes the gap on TIME and JURIS (both within
+sample noise) but trails by $+0.31$ on EVENT ($p = 0.004$). Running
+the full benchmark ($\approx$\$200 closed-API) and adding
+Opus / GPT-5 would tighten CIs and check whether the EVENT gap
+holds at the frontier ceiling.
 
 \paragraph{The model is specialised, and parent/subsidiary is a thin slice.} The cross-encoder underperforms zero-shot E5-small
 on out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
@@ -1006,28 +1014,19 @@ of this benchmark's construction, not of name similarity in ER
 generally. A 22M-parameter MiniLM cross-encoder reaches 0.83--0.87
 AUROC across all three splits (vs.\ $\leq$0.55 for every non-cross-encoder
 method on time and event) and 56--75\% Hits@1, sitting 24--35\,pp
-above the strongest bi-encoder; paired McNemar
-tests put the gap over a Claude-Haiku-4.5 LLM baseline at
-$p < 10^{-3}$ on every split. A miner-robustness re-mine with
-TF-IDF char-3gram cosine shrinks the cross-encoder advantage
-5--15\,pp but keeps it $+13$ to $+38$\,pp above zero-shot, and a
-prompt-and-backbone extension lifts the headline a further $+9$ to
-$+11$\,pp on time/event. A fielded retrieve-then-rerank simulation over the
-3.3M-entity universe drops end-to-end Hits@1 to 15--29\% (v2) /
-17--30\% (v10) because the bi-encoder's Recall@20 caps at
-33--50\%; the cross-encoder reranker is solid but cannot recover what
-retrieval drops. Per-event
-analysis is the most honest summary: real gains on M\&A,
-absorption, and breakup events; pure renames are already at 0.90
-Hits@1 zero-shot. The next iteration's biggest lever is a
-stronger first-stage retriever; smaller targets include a
-full-test-set LLM panel, an expanded held-out-jurisdiction set,
-and multi-class modelling of related-but-distinct entities.
+above the strongest bi-encoder, $p < 10^{-3}$ over Haiku and
+gpt-oss-20b on every split; against Sonnet 4.6 the gap is decisive
+only on EVENT ($p = 0.004$). Re-mining negatives shrinks the advantage 5--15\,pp but keeps
+it $+13$ to $+38$\,pp above zero-shot; a fielded retrieve-then-rerank
+simulation over the 3.3M-entity universe drops end-to-end Hits@1
+to 15--30\% because bi-encoder Recall@20 caps at 33--50\%. The real
+gains localise to M\&A, absorption, and breakup; pure renames are
+already at 0.90 Hits@1 zero-shot.
 
 \paragraph{Reproducibility.} Code, parsers, predictions, trained
-weights, and the miner-robustness experiment are at
-\url{https://github.com/chang-07/er-research}; end-to-end reproduction
-from raw GLEIF takes $\sim$2 hours on a single MacBook.
+weights, and the miner-robustness experiment at
+\url{https://github.com/chang-07/er-research}; end-to-end repro
+from raw GLEIF $\sim$2 hours on one MacBook.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{refs}
