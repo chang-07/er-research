@@ -63,7 +63,7 @@ AUROC on the time and event splits --- a property of how
 \textsc{TemporalLink} mines negatives, not a universal claim about
 name similarity in ER. A 22M-parameter MiniLM cross-encoder
 fine-tuned in $\approx$17 minutes on MPS is the first method to
-clear 0.5 AUROC on those two splits, reaching 60.5 / 56.5 / 75.0\%
+clear 0.8 AUROC on those two splits, reaching 60.5 / 56.5 / 75.0\%
 Hits@1 ($\pm$2.2 / 2.4 / 8.8\,pp bootstrap CI), 24--35\,pp over the
 best bi-encoder; paired McNemar's tests against a Claude-Haiku-4.5
 LLM baseline put the gap at $p < 10^{-3}$ on every split. A
@@ -117,13 +117,14 @@ them?}
         to is documented (\S\ref{sec:benchmark}, \S\ref{sec:limitations}).
 
   \item \textbf{An empirical characterisation} (Section~\ref{sec:experiments}):
-        four similarity baselines fall below 0.5 AUROC on the time
-        and event splits --- a direct consequence of mining
+        three similarity baselines (token, char-TF-IDF, zero-shot E5)
+        fall below 0.5 AUROC on the time and event splits --- a direct
+        consequence of mining
         same-name negatives against name-different positives, not a
         universal claim about name similarity in ER. A 22M-parameter
         MiniLM cross-encoder fine-tuned on benchmark positives and
         mined hard negatives is the first method here to clear
-        0.5 AUROC on those two splits, reaching 60.5 / 56.5 / 75.0\%
+        0.8 AUROC on those two splits, reaching 60.5 / 56.5 / 75.0\%
         Hits@1
         ($\pm$2.2 / 2.4 / 8.8\,pp), 24--35\,pp over the best
         bi-encoder. Per-event analysis (\S\ref{ssec:per_event})
@@ -447,7 +448,7 @@ ensemble (the actual best per column, see below).
     Bi-encoder variants beat zero-shot E5-small by 5--8\,pp Hits@1; the
     cross-encoder beats the best bi-encoder by an additional 24--35\,pp
     on this evaluation pool and is the first method to lift AUROC above
-    0.5 on the time and event splits. See Table~\ref{tab:robustness}
+    0.8 on the time and event splits. See Table~\ref{tab:robustness}
     for the same cross-encoder evaluated on an alternative miner's
     candidate pool. 95\% bootstrap CIs on Hits@1 for the cross-encoder
     cells are $\pm$2.2 / $\pm$2.4 / $\pm$8.8\,pp on time / event /
@@ -488,8 +489,8 @@ Figure~\ref{fig:cum_gains}). \emph{Prompt enrichment} adds GLEIF
 Level-2 parent and subsidiary names, legal-address city, founding
 year, ISO country-name expansion, and entity category to each
 serialised record. \emph{Wikidata-LEI mining} (SPARQL on P1278 on
-both sides of P156 / P1366 / P7888) recovers 259 cross-jurisdiction
-positive pairs missing from GLEIF's \texttt{SuccessorEntity}.
+both sides of P156 / P1366 / P7888) recovers 259 positive pairs
+missing from GLEIF's \texttt{SuccessorEntity} (49 cross-jurisdiction).
 \emph{Multi-seed averaging} (seeds 42 / 7 / 1337) is competitive;
 pairing the L-6 model with an L-12 model trained on the same recipe
 and averaging their sigmoid scores is uniformly stronger. A negative
@@ -568,7 +569,7 @@ below 0.5; Hits@1
 lifts 5--8\,pp over zero-shot but the model still has to place
 each record at a single point in embedding space. The
 cross-encoder is the first method on \textsc{TemporalLink} to
-clear 0.5 AUROC on the TIME and EVENT splits where the baselines
+clear 0.8 AUROC on the TIME and EVENT splits where the baselines
 fail (it lands at 0.83--0.87 across all three). The
 mechanism is joint attention across both records: the model can
 ask whether the differences between them look like a known
@@ -600,9 +601,9 @@ than doubles zero-shot on the small but operationally critical
 
 \paragraph{On the held-out-event split, ``held-out event type'' really
 means ``held-out absorption.''} The held-out-event test set is 94.5\%
-\texttt{ABSORPTION} anchors (Section~\ref{ssec:splits});
-\texttt{DEMERGER}, \texttt{BREAKUP}, and \texttt{SPINOFF} contribute
-$n=42$, $n=20$, and $n=4$ respectively. We report
+\texttt{ABSORPTION} anchors (Section~\ref{ssec:splits}); within the
+Hits@1-eligible subset, \texttt{DEMERGER}, \texttt{BREAKUP}, and
+\texttt{SPINOFF} contribute $n=42$, $n=20$, and $n=4$ respectively. We report
 Table~\ref{tab:event_split_breakdown} so that the contribution of each
 held-out type is visible separately. The cross-encoder lift is
 consistent across the absorption-like types (\texttt{ABSORPTION}: 0.22
@@ -748,7 +749,7 @@ does retrieve the true successor, the v2 cross-encoder picks it
 --- the reranker is the strong link. End-to-end deployment Hits@1
 (recall $\times$ conditional, with un-retrieved truths counted as
 misses) is 15--29\% for v2 and 26--45\% for v10. The drop from
-60--75\% in-distribution to 15--45\% deployment confirms rather
+56--75\% in-distribution to 15--45\% deployment confirms rather
 than contradicts \S\ref{ssec:bi}: the bi-encoder's fixed-embedding
 limit, which fails to retrieve lifecycle-spanning successors by
 cosine similarity, is exactly the bottleneck the anti-correlation
@@ -934,7 +935,7 @@ finding motivates joint encoding here; it is not a universal claim
 about name similarity in ER.
 
 \paragraph{In-distribution headline overstates deployment.}
-The headline cross-encoder Hits@1 (60--75\,\%) is on the v2 mined
+The headline cross-encoder Hits@1 (56--75\,\%) is on the v2 mined
 candidate pool; on a fielded retrieve-then-rerank pipeline that
 draws candidates from the full 3.3M-entity GLEIF universe
 (\S\ref{ssec:robustness}), end-to-end Hits@1 falls to 15--29\,\%
@@ -1002,12 +1003,12 @@ entity resolution on financial entities, built from public GLEIF,
 SEC EDGAR, and Wikidata data and reproducible end-to-end on a
 single MacBook in $\sim$2 hours. Hard negatives are mined to be
 name-similar to each predecessor and true successors are by
-construction name-different, so similarity-based baselines fall
-below 0.5 AUROC on the time and event splits --- a property of
-this benchmark's construction, not of name similarity in ER
+construction name-different, so similarity-based baselines stay
+at or below 0.55 AUROC on the time and event splits --- a property
+of this benchmark's construction, not of name similarity in ER
 generally. A 22M-parameter MiniLM cross-encoder is the first
-method here to clear 0.5 AUROC on those two splits, reaches
-60--75\% Hits@1 across all three, and sits 24--35\,pp above the
+method here to clear 0.8 AUROC on those two splits, reaches
+56--75\% Hits@1 across all three, and sits 24--35\,pp above the
 strongest bi-encoder; paired McNemar
 tests put the gap over a Claude-Haiku-4.5 LLM baseline at
 $p < 10^{-3}$ on every split. A miner-robustness re-mine with
