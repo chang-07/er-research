@@ -76,11 +76,11 @@ TF-IDF char-3gram cosine shrinks the cross-encoder advantage
 5--15\,pp but keeps it $+13$ to $+38$\,pp above zero-shot. A
 fielded retrieve-then-rerank simulation over the full 3.3M-entity
 universe drops end-to-end Hits@1 to 15--30\,\%: the bi-encoder's
-Recall@20 of 33--50\,\% is the upstream bottleneck. Against a
-sampled Opus-4.7 LLM baseline (56 / 52 / 50 anchors) the
-cross-encoder gap is decisive only on the absorption-heavy EVENT
-split ($p = 0.004$); on TIME and JURIS the comparison is within
-sample noise. Code, splits,
+Recall@20 of 33--50\,\% is the upstream bottleneck. Against sampled
+Sonnet-4.6 and Opus-4.7 LLM baselines (56 / 52 / 50 anchors each,
+statistically indistinguishable from each other) the cross-encoder
+gap is decisive only on the absorption-heavy EVENT split; on TIME
+and JURIS the comparison is within sample noise. Code, splits,
 predictions, and trained weights reproduce on a single MacBook
 in $\sim$2 hours.
 \end{abstract}
@@ -396,34 +396,32 @@ We compare against four similarity baselines:
 \texttt{tfidf\_char} (char-3gram TF-IDF cosine fit on the union of
 legal names in the benchmark), and \texttt{sentence\_encoder}
 (zero-shot E5-small-v2 cosine on the legal name --- same backbone
-as the method, without fine-tuning). We also report three
+as the method, without fine-tuning). We also report four
 zero-shot LLM pairwise baselines on a stratified test-set sample
 (56 / 52 / 50 anchors for TIME / EVENT / JURIS respectively, with
 all candidate pairs per anchor scored): Anthropic's
-\textbf{Claude Haiku 4.5} via API ($\approx$\$1.50 spend with
-prompt-caching), Anthropic's \textbf{Claude Opus 4.7} run through
-Claude Code subagents in 25\,s wall-clock with 16-way parallelism
-($\approx$444K plan tokens), and OpenAI's \textbf{gpt-oss-20b}
-run locally on
-Apple Silicon via Ollama. Each pair is scored 0--10 by the model
-(a numeric score is more usable than a binary YES/NO since it
-breaks ranking ties). Per-split Hits@1 + MRR for all three appear
-in Table~\ref{tab:main_results}.
+\textbf{Claude Haiku 4.5} via API ($\approx$\$1.50 with
+prompt-caching), Anthropic's \textbf{Claude Sonnet 4.6} and
+\textbf{Claude Opus 4.7} both run through Claude Code subagents
+($\approx$274K and 444K plan tokens respectively), and OpenAI's
+\textbf{gpt-oss-20b} run locally via Ollama. Pairs are scored 0--10
+(more usable than YES/NO for ranking). Per-split Hits@1 + MRR
+appear in Table~\ref{tab:main_results}.
 
 Paired McNemar tests on per-anchor Hits@1 over the shared
 \emph{stratified sample} (not the full test set) separate the
 comparisons cleanly. Versus Haiku and gpt-oss-20b the cross-encoder
 gap clears noise on every split (Haiku $p < 10^{-4}$ on TIME/EVENT,
-$p = 3\!\times\!10^{-4}$ on JURIS, discordant $\geq 4.5\!:\!1$;
-$16/16$ JURIS discordant pairs go to v10 over gpt-oss). Opus 4.7
-is tighter: v2 wins EVENT decisively ($+0.31$, $p = 0.004$) but
-TIME ($+0.11$, $p = 0.26$) and JURIS ($+0.08$, $p = 0.45$) are
-within sample noise. The L-6$\times$L-12 ensemble clears noise on
-TIME ($+0.25$, $p = 0.004$) and EVENT ($+0.35$, $p < 10^{-3}$) but
-not JURIS ($+0.14$, $p = 0.12$). On these sampled anchors the
-cross-encoder dominates the absorption-heavy split where lifecycle
-reasoning is hardest; on the 50-anchor JURIS sample we cannot
-distinguish it from a frontier LLM.
+$p = 3\!\times\!10^{-4}$ on JURIS, discordant $\geq 4.5\!:\!1$).
+Both Sonnet 4.6 and Opus 4.7 are tighter and statistically
+indistinguishable from each other ($p > 0.37$ on all splits). The
+v2 cross-encoder beats both frontier models only on EVENT ($+0.27$
+vs Sonnet, $p = 0.020$; $+0.31$ vs Opus, $p = 0.004$); TIME and
+JURIS are within sample noise for both. The L-6$\times$L-12 ensemble
+clears noise on TIME ($p < 0.05$) and EVENT ($p < 0.003$) for both,
+but not JURIS. The cross-encoder dominates the absorption-heavy split
+where lifecycle-specific reasoning is hardest; on the 50-anchor JURIS
+sample we cannot distinguish it from a frontier LLM.
 
 \subsection{Metrics}
 
@@ -473,8 +471,9 @@ ensemble (the actual best per column, see below).
     \texttt{tfidf\_char}            & 0.277 & 0.176 & 0.359 & 0.349 & 0.204 & 0.381 & 0.568 & 0.421 & 0.583 \\
     \texttt{sentence\_encoder}      & 0.315 & 0.202 & 0.384 & 0.386 & 0.224 & 0.403 & 0.648 & 0.432 & 0.587 \\
     \midrule
-    \multicolumn{10}{l}{\emph{LLM pairwise (sampled: 56 / 52 / 50 anchors per TIME / EVENT / JURIS split, scored on every candidate pair)}} \\
+    \multicolumn{10}{l}{\emph{LLM pairwise --- stratified sample: 56 / 52 / 50 anchors per split, full candidate pool scored}} \\
     \texttt{Claude Haiku 4.5} (closed, API)        & --- & 0.214 & 0.371 & --- & 0.231 & 0.418 & --- & 0.480 & 0.645 \\
+    \texttt{Claude Sonnet 4.6} (closed, CC subagents) & --- & 0.429 & 0.532 & --- & 0.288 & 0.454 & --- & 0.600 & 0.705 \\
     \texttt{Claude Opus 4.7} (closed, CC subagents) & --- & 0.375 & 0.511 & --- & 0.250 & 0.435 & --- & 0.620 & 0.747 \\
     \texttt{gpt-oss-20b} (open, local Ollama)      & --- & 0.179 & 0.351 & --- & 0.173 & 0.369 & --- & 0.440 & 0.632 \\
     \midrule
@@ -961,16 +960,15 @@ sample sizes in mind. A secondary auto-classifier check
 confident-positive subset; expert multi-annotator review would give
 a tighter bound.
 
-\paragraph{The LLM baselines run on a stratified sample, not the
-full test set.} All three LLM rows in Table~\ref{tab:main_results}
-are evaluated on the same stratified sample (56 / 52 / 50 anchors
-for TIME / EVENT / JURIS) with each anchor's full candidate pool
-scored. Hits@1 95\% CIs run $\pm$10--14\,pp across the LLM rows.
-Opus 4.7 nearly closes the gap on TIME and JURIS but trails by
-$+0.31$ on EVENT ($p = 0.004$). At deployment scale the cost
-profile is what matters: 0.64\,ms/pair after one-time training
-for the cross-encoder versus $\sim$1\,s/pair metered for Opus 4.7,
-so even at parity the small model wins on throughput.
+\paragraph{LLM baselines: sampled, and cost matters.}
+All four LLM rows are evaluated on a stratified sample
+(56 / 52 / 50 anchors per split). Sonnet 4.6 and Opus 4.7 are
+statistically indistinguishable ($p > 0.37$) and both trail the
+cross-encoder decisively only on EVENT ($p < 0.02$). The cost gap
+is as striking as the accuracy gap: 0.64\,ms/pair after one-time
+training for the cross-encoder versus $\sim$1\,s/pair metered for
+either frontier model. Even at accuracy parity, the domain-tuned
+model wins on throughput.
 
 \paragraph{The model is specialised, and parent/subsidiary is a thin slice.} The cross-encoder underperforms zero-shot E5-small
 on out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
@@ -996,8 +994,8 @@ generally. A 22M-parameter MiniLM cross-encoder reaches 0.83--0.87
 AUROC across all three splits (vs.\ $\leq$0.55 for every non-cross-encoder
 method on time and event) and 56--75\% Hits@1, sitting 24--35\,pp
 above the strongest bi-encoder, $p < 10^{-3}$ over Haiku and
-gpt-oss-20b on every split; against Opus 4.7 the gap is decisive
-only on EVENT ($p = 0.004$). Re-mining negatives shrinks the advantage 5--15\,pp but keeps
+gpt-oss-20b on every split; against frontier models (Sonnet 4.6,
+Opus 4.7) the gap is decisive only on EVENT ($p < 0.02$). Re-mining negatives shrinks the advantage 5--15\,pp but keeps
 it $+13$ to $+38$\,pp above zero-shot; a fielded retrieve-then-rerank
 simulation over the 3.3M-entity universe drops end-to-end Hits@1
 to 15--30\% because bi-encoder Recall@20 caps at 33--50\%. The real
