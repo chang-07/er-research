@@ -55,7 +55,7 @@ def main():
         h, m, _ = hits1_mrr(test)
         out_cells.extend([f"{auroc:.3f}", f"{h:.3f}", f"{m:.3f}"])
     row = " & ".join(out_cells)
-    print(f"    \\texttt{{method\\_v2\\_crossenc}} (L-12, 60M) & {row} \\\\")
+    print(f"    Cross-encoder (L-12, 33M)      & {row} \\\\")
     print()
     print("Latex-ready row above. Insert in Table 1 below the L-6 row.")
 

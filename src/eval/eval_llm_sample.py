@@ -80,7 +80,18 @@ def main():
     print("-" * 80)
     for split in ("split_time", "split_event", "split_jurisdiction"):
         test = df[(df[split] == "test") & (df["anchor_lei"].isin(scored_anchors))]
-        test = test[test["score"].notna()].copy()
+        # Drop anchors with ANY unscored candidate: ranking a partial pool
+        # silently shifts the gold rank (e.g. pairs the runner errored on
+        # and excluded from the parquet). Better to lose the anchor and
+        # say so than to quietly corrupt Hits@1.
+        has_nan = test.groupby("anchor_lei")["score"].transform(
+            lambda s: s.isna().any())
+        n_dropped = test.loc[has_nan, "anchor_lei"].nunique()
+        if n_dropped:
+            print(f"  WARN {split}: dropping {n_dropped} anchors with "
+                  f"incomplete candidate scores (re-run the LLM runner "
+                  f"with --resume to fill them)", file=sys.stderr)
+        test = test[~has_nan].copy()
         h, hlo, hhi, m, mlo, mhi, n = hits1_mrr_with_ci(test)
         print(f"{split:<25s}  {n:>5d}  "
               f"{h:>6.4f} [{hlo:>5.3f},{hhi:>5.3f}]  "

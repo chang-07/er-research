@@ -1,4 +1,4 @@
-"""B-cubed cluster-level precision/recall on TemporalLink positives.
+"""B-cubed cluster-level precision/recall on Sylvester positives.
 
 Pair-level F1 is the standard ER metric but Binette (arXiv 2404.05622) and
 the OpenSanctions Pairs paper both argue it's misleading for downstream

@@ -1,4 +1,4 @@
-"""Generate figures for the TemporalLink paper.
+"""Generate figures for the Sylvester paper.
 
 Outputs PDFs (vector, for LaTeX) and PNG previews under paper/figures/.
 
@@ -39,8 +39,8 @@ PRETTY = {
     "method_no_hard":     "method (no hard negs)",
     "method_full":        "method (full)",
     "method_v2_full":     "method v2 (bi)",
-    "method_v2_crossenc": "v2 cross-enc (L-6)",
-    "method_v10_L6xL12":  "v10 (L-6 x L-12 ens.)",
+    "method_v2_crossenc": "cross-encoder (L-6)",
+    "method_v10_L6xL12":  "L-6 $\\times$ L-12 ensemble",
 }
 SPLIT_PRETTY = {
     "split_time": "Held-out time",
@@ -69,9 +69,11 @@ def fig1_histogram(data_dir, out_dir):
         bottom = bottom + vals
     ax.set_xlabel("Year (event effective date)")
     ax.set_ylabel("COMPLETED lifecycle events")
-    ax.set_title("Lifecycle event volume in GLEIF (Level-1, 2026-05-19 snapshot)")
-    ax.set_xticks(pv.index)
-    ax.set_xticklabels(pv.index, rotation=0, fontsize=8)
+    ax.set_title("Lifecycle event volume in GLEIF (Level-1, 2026-05-19 snapshot)",
+                 fontsize=9.5)
+    years = pv.index.astype(int)
+    ax.set_xticks(years)
+    ax.set_xticklabels(years, rotation=0, fontsize=8)
     ax.legend(loc="upper left", fontsize=7, frameon=False, ncol=1)
     ax.grid(axis="y", linestyle=":", alpha=0.5)
     fig.tight_layout()
@@ -190,7 +192,7 @@ def fig6_cumulative_gains(data, out_dir):
         ("+ country expansion",         "method_v6_crossenc_v6prompt"),
         ("3-way ensemble",              "method_v7_final_ensemble"),
         ("single (prompt+data, L-6)",   "method_v8a_combined"),
-        ("L-12 backbone (60M)",         "method_v8aL12_combined"),
+        ("L-12 backbone (33M)",         "method_v8aL12_combined"),
         ("L-6 $\\times$ L-12 ensemble", "method_v10_L6xL12"),
     ]
 

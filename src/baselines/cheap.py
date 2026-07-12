@@ -1,4 +1,4 @@
-"""Cheap CPU baselines on TemporalLink v1 pairs.
+"""Cheap CPU baselines on Sylvester v1 pairs.
 
 Three baselines, all <1 min on 125K pairs:
 

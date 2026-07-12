@@ -1,4 +1,4 @@
-"""Evaluate baselines on TemporalLink v1.
+"""Evaluate baselines on Sylvester v1.
 
 Reads everything in data/predictions/ and joins against data/pairs.parquet
 for labels and split assignments. For each (baseline x split_regime) it
@@ -124,7 +124,7 @@ def main():
 
     for pf in pred_files:
         baseline = os.path.basename(pf).replace(".parquet", "")
-        # Skip non-TemporalLink prediction files (e.g., Magellan transfer
+        # Skip non-Sylvester prediction files (e.g., Magellan transfer
         # benchmarks that don't share the anchor_lei/candidate_lei schema).
         schema_cols = set(pq.read_schema(pf).names)
         if not {"anchor_lei", "candidate_lei", "score"}.issubset(schema_cols):

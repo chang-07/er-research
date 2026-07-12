@@ -1,6 +1,6 @@
 """Train a lifecycle-aware bi-encoder via supervised contrastive learning.
 
-Fine-tunes E5-small-v2 from successor-link positives in TemporalLink v1
+Fine-tunes E5-small-v2 from successor-link positives in Sylvester v1
 plus the hard negatives mined in Phase 1B. The entity-state-at-time signal
 (jurisdiction, legal form, optional listed-exchange and city) is folded into
 the text prompt rather than a separate vector head — simpler and works well

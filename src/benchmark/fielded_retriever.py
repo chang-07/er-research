@@ -1,6 +1,6 @@
 """Build a fielded-retriever candidate pool.
 
-Addresses the limitation in §6 that all TemporalLink candidates so far
+Addresses the limitation in §6 that all Sylvester candidates so far
 come from the same family of miners (E5-cosine, char-3gram). A truly
 fielded ER pipeline retrieves candidates from the FULL entity universe
 using a bi-encoder, then reranks the top-K with a cross-encoder. This

@@ -73,7 +73,7 @@ def time_cheap(pairs, ent, n=1000):
     return out
 
 
-def llm_cost_per_1k(input_per_call=255, cached_input=165, user=85, output=17):
+def llm_cost_per_1k(input_per_call=255, cached_input=165, user=85, output=60):
     """List-price dollar cost per 1K pair classifications.
     Models priced as of late 2025/early 2026.
     """
@@ -81,7 +81,7 @@ def llm_cost_per_1k(input_per_call=255, cached_input=165, user=85, output=17):
     models = [
         ("claude-haiku-4-5",     1.00, 5.00, 0.10),
         ("claude-sonnet-4-6",    3.00, 15.0, 0.30),
-        ("claude-opus-4-7",     15.0,  75.0, 1.50),
+        ("claude-opus-4-7",      5.0,  25.0, 0.50),
         ("gpt-4o-mini",          0.15, 0.60, None),
         ("gpt-4o",               2.50, 10.0, None),
         ("gemini-2.0-flash",     0.10, 0.40, None),
@@ -91,8 +91,11 @@ def llm_cost_per_1k(input_per_call=255, cached_input=165, user=85, output=17):
     rows = []
     for name, p_in, p_out, p_cache in models:
         if p_cache is not None:
-            # With prompt caching: pay cache_input once (amortize over 1k), pay user + output per call
-            in_cost = (cached_input * p_cache + user * p_in * 1000) / 1_000_000
+            # With prompt caching: the cached system prefix is READ on every
+            # call at the cache-read rate (~0.1x input); user tokens pay full
+            # input price. One-time cache write (1.25x on 165 tok) is
+            # negligible per 1k calls and omitted.
+            in_cost = (cached_input * p_cache * 1000 + user * p_in * 1000) / 1_000_000
         else:
             in_cost = input_per_call * p_in * 1000 / 1_000_000
         out_cost = output * p_out * 1000 / 1_000_000

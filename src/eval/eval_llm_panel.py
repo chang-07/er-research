@@ -76,11 +76,19 @@ def main():
               "split_jurisdiction": "JURIS"}
 
     for split in splits:
-        # Anchors that ALL models scored on this split's test set
+        # Anchors that ALL models FULLY scored on this split's test set.
+        # "Fully" matters: an anchor with any unscored candidate (e.g. an
+        # API error the runner excluded) would be ranked on a partial pool,
+        # silently shifting Hits@1 for that model only.
         test_split = pairs[pairs[split] == "test"]
         common = None
-        for stem, (_, anchors) in models.items():
-            s_anchors = set(test_split[test_split["anchor_lei"].isin(anchors)]["anchor_lei"])
+        for stem, (preds, _) in models.items():
+            merged = test_split.merge(
+                preds[["anchor_lei", "candidate_lei", "score"]],
+                on=["anchor_lei", "candidate_lei"], how="left")
+            ok = merged.groupby("anchor_lei")["score"].apply(
+                lambda s: s.notna().all())
+            s_anchors = set(ok[ok].index)
             common = s_anchors if common is None else (common & s_anchors)
         common = common or set()
         print(f"=== {short[split]} ({len(common)} anchors scored by all models) ===")

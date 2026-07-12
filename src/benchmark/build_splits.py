@@ -1,4 +1,4 @@
-"""Assemble the final TemporalLink v1 pair dataset with three eval splits.
+"""Assemble the final Sylvester v1 pair dataset with three eval splits.
 
 For each plausibly-real successor pair, finds the most informative COMPLETED
 lifecycle event on the predecessor (the "anchor event") and uses its date,
