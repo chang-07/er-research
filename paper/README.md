@@ -1,7 +1,7 @@
 # Paper artifacts
 
 This directory contains the draft paper, figures, datasheet, and bibliography
-for "TemporalLink: A Benchmark and Method for Lifecycle-Aware Entity
+for "Sylvester: A Benchmark and Method for Lifecycle-Aware Entity
 Resolution on Open Financial Data."
 
 ## Files

@@ -390,7 +390,7 @@ Output: `data/wikidata_marquee.parquet` (0.2 MB) — kept as a separate
 marquee test slice; can be merged into `pairs.parquet` as positives or held
 as a qualitative eval set.
 
-## TemporalLink v1 — final artifact summary
+## Sylvester v1 — final artifact summary
 
 The complete v1 dataset deliverables sitting under `data/` (gitignored):
 
@@ -413,7 +413,7 @@ proprietary access required. Total wall time from raw XML to v1 dataset:
 
 # Phase 2: baseline results (2026-05-19)
 
-Four baselines run on TemporalLink v1 via the shared harness
+Four baselines run on Sylvester v1 via the shared harness
 (`src/baselines/` + `src/eval/evaluate.py`):
 
 - `exact_name`        — normalized legal-name equality (0/1)

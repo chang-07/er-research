@@ -1,7 +1,7 @@
-# Datasheet for TemporalLink v1
+# Datasheet for Sylvester v1
 
 Following the template of Gebru et al. (2018), *Datasheets for Datasets*.
-This datasheet accompanies the paper "TemporalLink: A Benchmark and Method
+This datasheet accompanies the paper "Sylvester: A Benchmark and Method
 for Lifecycle-Aware Entity Resolution on Open Financial Data."
 
 ---
@@ -46,9 +46,9 @@ entities").
 | `successor_links.parquet` (enriched + classified) | 33,652 |
 | `hard_negatives.parquet` (v1 mined hard negatives) | 253,733 |
 | `hard_negatives_v2.parquet` (v2: E5-cosine; recommended for training) | 652,764 |
-| `hard_negatives_v3.parquet` (v3: TF-IDF char-3gram; for miner-robustness evaluation) | 652,680 |
-| **`pairs.parquet` (the v1/headline evaluation dataset)** | **125,519** |
-| `pairs_v3.parquet` (alternative evaluation pool with v3 negatives) | 217,957 |
+| `hard_negatives_v3.parquet` (v3: TF-IDF char-3gram; for the paper's miner-robustness evaluation) | 652,680 |
+| **`pairs.parquet` (the headline evaluation pool — the paper's "E5-neg pool")** | **125,519** |
+| `pairs_v3.parquet` (the paper's "TF-IDF pool", Sylvester-TF-IDF — alternative evaluation pool with TF-IDF negatives) | 217,957 |
 | &nbsp;&nbsp;&nbsp;&nbsp;of which positives (label=1) | 31,824 |
 | &nbsp;&nbsp;&nbsp;&nbsp;of which negatives (label=0) | 93,695 |
 | `wikidata_marquee.parquet` (qualitative supplement) | 3,590 |
@@ -97,11 +97,18 @@ Yes; three split regimes are provided (`split_time`, `split_event`,
   re-issuances rather than real lifecycle events; we filter these out
   using the `likely_administrative` heuristic (`DATA_NOTES.md`,
   Phase-0 spike).
+- Date hygiene: 17,763 pair rows (14.2%) have a null
+  `anchor_event_date` (the anchor event carries no effective date);
+  these are assigned `excl` in `split_time` by design and participate
+  only in the event/jurisdiction regimes. 14 rows carry implausible
+  pre-1900 effective dates from upstream GLEIF typos (e.g., year
+  0201); they fall in the time-split train partition and are harmless
+  at this count. Consumers parsing dates should use a coercing parser.
 - Coverage skew: GLEIF data quality jumped substantially in 2022
   ("2022 cliff" in `DATA_NOTES.md`). Pre-2022 events are sparse and
   biased.
 - Hard-negative noise: the `token_overlap_same_country` fuzzy-fallback
-  class (92% of hard negatives) is the lowest-precision; the ablation
+  class (92% of v1 hard negatives) is the lowest-precision; the ablation
   in the paper shows it slightly hurts training.
 
 **Is the dataset self-contained?**
@@ -170,8 +177,9 @@ Yes; all preprocessing is the Python code in `src/`.
 ## 5. Uses
 
 **Has the dataset been used for any tasks already?**
-Yes; the accompanying paper trains and evaluates four baseline systems
-and three method variants on this dataset.
+Yes; the accompanying paper trains and evaluates the similarity, LLM,
+bi-encoder, and cross-encoder baselines and methods reported in its
+Table 1 on this dataset.
 
 **Is there a repository linking to other papers/systems using the
 dataset?**
@@ -254,9 +262,10 @@ v2 and v3 additions have already shipped alongside v1:
 - **v3** (`data/hard_negatives_v3.parquet`, `data/pairs_v3.parquet`):
   alternative hard-negative pool from char-3gram TF-IDF cosine ---
   structurally orthogonal to v2 (no learned representation, no shared
-  parameters with E5). Used for miner-robustness evaluation; consumers
-  can use either pool depending on which similarity-signal they want
-  the benchmark to test against.
+  parameters with E5). This is the paper's "TF-IDF pool"
+  (Sylvester-TF-IDF), used for its miner-robustness evaluation;
+  consumers can use either pool depending on which similarity-signal
+  they want the benchmark to test against.
 
 Future planned additions (not yet shipped):
 - EDGAR 8-K Item 5.03 supplementary positives for US public companies.

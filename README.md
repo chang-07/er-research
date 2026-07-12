@@ -1,226 +1,342 @@
-# TemporalLink
+# Sylvester
 
 **Lifecycle-aware entity resolution for financial entities.**
 
-Most entity-resolution systems answer "do these two records refer to the same
+Most entity-resolution (ER) systems answer "do these two records refer to the same
 entity *right now*?" They fall apart when the entity has undergone a lifecycle
-event — a merger, spinoff, rebrand, ticker change, jurisdiction migration —
-between the two records. This repo builds the first open benchmark for that
-problem and a method that beats both classical record-linkage and modern
-LLM-based pair-matching baselines on lifecycle-spanning pairs.
+event — a merger, spinoff, rebrand, ticker change, or jurisdiction migration —
+between the two records. This repo builds an open benchmark for that problem (to
+our knowledge the first) and a method that beats both classical record-linkage
+and modern LLM pair-matching baselines on lifecycle-spanning pairs.
 
-All data is from open registries (GLEIF, SEC EDGAR, Wikidata). No proprietary
-sources required.
+Everything is built from open, CC0/CC-BY registries (GLEIF, SEC EDGAR, Wikidata).
+No proprietary sources required; the full pipeline runs end-to-end on a laptop.
 
-## Status
+---
 
-- [x] Data-availability audit on the GLEIF Level-1 LEI-CDF dump (`gleif_audit.py`)
-- [x] Label-quality validation: 94.57% plausibly real (`validate_successor_pairs.py`)
-- [x] LEI ↔ CIK crosswalk: 3,334 confident matches (`lei_cik_crosswalk.py`)
-- [x] Parquet ingestion: 3.3M entities, 1.17M events, 33.6K successor pairs (`src/ingest/gleif_to_parquet.py` + `src/benchmark/build_successor_links.py`)
-- [x] GLEIF Level-2 RR ingestion: 473,839 relationships (`src/ingest/gleif_rr_to_parquet.py`)
-- [x] Hard-negative mining: 253,733 candidates across 4 classes (`src/benchmark/mine_hard_negatives.py`)
-- [x] Eval splits built: 125,519 pair rows with held-out-time / -event-type / -jurisdiction assignments (`src/benchmark/build_splits.py`)
-- [x] Wikidata marquee supplement: 302 famous M&A matched to GLEIF (`src/benchmark/wikidata_marquee.py`)
-- [x] Baselines run: exact_name, token_set, tfidf_char, sentence_encoder (E5-small). Best Hits@1 = 22% on the headline splits — method paper justified. `src/baselines/`, `src/eval/`
-- [ ] LLM-pairwise baseline (scaffold ready; needs API key + budget)
-- [x] Method (v1): lifecycle-aware bi-encoder fine-tuned on E5-small with state features + hard negatives. **+5–8 pp Hits@1 over zero-shot E5 across all splits.** Two ablations run. `src/method/train.py`
-- [x] Paper draft + datasheet + figures (Phase 4): `paper/draft.tex`, `paper/datasheet.md`, `paper/figures/*.pdf`. ~9 pages, Gebru-template datasheet appendix.
-- [x] **v2 integration:** E5-cosine hard-neg re-mining (`src/benchmark/mine_hard_negatives_v2.py`), transitive successor positives (`src/benchmark/transitive_positives.py`), v2 bi-encoder retrain, and a fine-tuned cross-encoder (`src/method/train_cross_encoder.py`). **Cross-encoder lifts Hits@1 to 0.605 / 0.564 / 0.750 on the three splits — +24-35 pp over the best bi-encoder, and the first method to break AUROC > 0.5 on the time/event splits.**
-- [x] **v3 miner-robustness experiment:** alternative hard-neg pool from char-3gram TF-IDF cosine (`src/benchmark/mine_hard_negatives_v3.py`), parallel pairs file (`data/pairs_v3.parquet`), cross-encoders trained and evaluated in a 2x2 train/eval matrix (`src/method/train_cross_encoder.py` + `src/eval/compare_distributions.py`). **Cross-encoder gain shrinks 5-15 pp under out-of-distribution candidate-pool shift but stays +13 to +38 pp above baselines across all six cells — gap is partly in-distribution but not purely a within-miner artifact.**
-- [x] **Statistical rigor:** bootstrap 95% CIs on Hits@1 added to `src/eval/evaluate.py`; jurisdiction split's headline number (n=88 anchors) reported with ±8.8 pp CI band so it isn't over-interpreted.
-- [x] **Path-aware transitive-positive filter:** `transitive_positives.py` now emits `intermediate_leis`; both `train.py` and `train_cross_encoder.py` reject transitive (A,C) positives whose chain crosses a train/test boundary.
-- [x] **v4–v10 cumulative extensions** (no paid compute, no new data sources beyond Wikidata SPARQL): (v4) enriched text prompt with GLEIF L2 parent/up-to-2 subsidiary names, city, founding year; (v5) Wikidata-LEI bridge mined via SPARQL on P156/P1366/P7888 with P1278 on both sides, adding 259 cross-jurisdiction positives (`wikidata_expand_lei.py` + `integrate_wikidata.py`); (v6) country/jurisdiction expansion via `pycountry` (`SG`→`SG (Singapore)`, `US-DE`→`Delaware`) + `category` field; (v7) ensemble averaging of v4 3-seed ensemble + v5 + v6; (v8a) single L-6 model combining v5 data + v6 prompt; (v8aL12) v8a recipe on the MiniLM-L-12 backbone; (v10) average of v8a + v8aL12. **Final v10 Hits@1: 0.700 / 0.677 / 0.784 on TIME/EVENT/JURIS — +9.4 / +11.2 / +3.4 pp over the v2 cross-encoder headline. Negative finding: symmetric scoring (avg of s(a,b) and s(b,a)) hurts performance −0.9 / −1.9 / −9.1 pp, confirming the cross-encoder is strongly directional.** Eval script: `src/eval/v4_progression.py`.
-- [ ] HF Datasets release (manual upload after paper submission).
-- [ ] LLM-pairwise baseline (~$2 for 5% Haiku sample; biggest remaining experimental gap)
-- [ ] Method v3: explicit modeling of parent/subsidiary edges (the one negative class the cross-encoder regressed on); possibly bigger backbones (E5-large / BGE-large) with GPU.
-- [ ] Method (entity-state-at-time bi-encoder w/ event-bridging contrastive loss)
-- [ ] Write-up + arXiv preprint
-- [ ] Submit (target: ICAIF 2026 workshop primary, NeurIPS 2026 D&B stretch)
+## TL;DR — the findings in five lines
 
-See [PLAN.md](PLAN.md) for the full 12-week plan.
-See [DATA_NOTES.md](DATA_NOTES.md) for what the GLEIF audit told us.
+1. **The task is real and hard.** Hard negatives are mined to be *name-similar* to
+   each predecessor; true successors are by construction *name-different*. So on
+   this benchmark, name similarity is **evidence against** a match — every
+   similarity baseline lands **below 0.5 AUROC** on the time/event splits.
+2. **Joint encoding is what closes the gap.** A 22M-param MiniLM **L-6 cross-encoder**
+   reaches **0.605 / 0.564 / 0.750 Hits@1** and **0.836 / 0.825 / 0.868 AUROC**
+   across the TIME / EVENT / JURIS splits — **+34 / +27 / +24 pp** over the best
+   bi-encoder. An L-6×L-12 ensemble pushes Hits@1 to **0.700 / 0.677 / 0.784**.
+3. **The benchmark "cuts both ways."** Because the construction makes
+   *dissimilarity* predictive, a naive **anti-similarity** baseline (rank by
+   *negated* name similarity) scores **0.677 / 0.607 / 0.500 Hits@1** on the
+   curated pool — *above* the L-6 on TIME/EVENT. Curated Hits@1 alone is gameable.
+4. **The honest numbers come from off-pool tests.** The exploit **collapses** under
+   any change of conditions (≈0.19 on a different-miner pool, ≈0.19 fielded, 0.10
+   on pure renames); the cross-encoder stays strong **simultaneously** on every
+   pool and every event type. On a **fielded retrieve-then-rerank** pipeline over
+   the full 3.3M-entity universe, end-to-end Hits@1 is **15–30%** (recall-bottlenecked) —
+   that is the deployment number, not the curated one.
+5. **Known caveats are quantified, not hidden** (see [Honest caveats](#honest-caveats)):
+   the EVENT split is 94.5% absorption, JURIS has only n=88 (directional), GLEIF
+   labels carry survivorship bias, and all three negative miners share a name axis.
 
-## Reproducing the Phase-0 spikes
+> **Naming map (repo ↔ paper).** Internal labels predate the paper's final
+> terminology. The *v2 cross-encoder* is the paper's headline **L-6 cross-encoder
+> (22M)**; *v8aL12* is the **L-12 (33M)** variant; *v10* is the **L-6 × L-12
+> ensemble**. *v1 / v2 hard negatives* are the **token-overlap** and **E5-cosine**
+> miners; `pairs.parquet` is the paper's **E5-neg pool** and `pairs_v3.parquet`
+> its **TF-IDF pool** (Sylvester-TF-IDF). Artifact, script, and model-directory
+> names keep the internal labels so the reproduction commands stay valid.
 
-You need the latest GLEIF Level-1 concatenated file (XML, ~2 GB compressed,
-~7.5 GB decompressed). Download from
-<https://www.gleif.org/en/lei-data/gleif-concatenated-file/download-the-concatenated-file>
-and place it at the project root. Then:
+---
 
-```bash
-pip install -r requirements.txt
-python3 gleif_audit.py              # ~50s — viability audit
-python3 validate_successor_pairs.py # ~90s — label-quality check on successor pairs
-python3 lei_cik_crosswalk.py        # ~50s + 1 small SEC fetch
+## Repository layout
+
+```
+gleif_audit.py                  Phase-0 viability audit on the raw GLEIF dump
+validate_successor_pairs.py     Phase-0 label-quality spike
+lei_cik_crosswalk.py            Phase-0 LEI↔CIK (SEC EDGAR) feasibility spike
+src/
+  ingest/                       XML → typed parquet (Level-1 entities/events, Level-2 RR)
+  benchmark/                    label building, hard-neg mining (v1/v2/v3), splits,
+                                transitive positives, Wikidata, fielded retriever
+  baselines/                    cheap (exact/token/tfidf), E5 encoder, LLM pairwise
+  method/                       bi-encoder + cross-encoder training, scoring, ablations
+  eval/                         evaluate.py + diagnostics (gap_checks, calibration,
+                                error taxonomy, cost/latency, robustness CIs, …)
+paper/                          draft.tex, refs.bib, datasheet.md (Gebru), figures/
+data/                           all parquet artifacts + predictions/ + models/ (gitignored)
+PLAN.md                         the full 12-week plan and task ledger
+DATA_NOTES.md                   chronological lab notebook: every count, every phase
 ```
 
-Note: the SEC fetch in `lei_cik_crosswalk.py` requires an email-bearing
-User-Agent. Edit the `UA` constant before running with your own contact.
+---
 
-## Building TemporalLink v1 (all of Phase 1)
+## Procedures
 
+The benchmark is built in five stages; the method and the robustness/honesty
+checks follow. Each stage is one or two scripts and reproduces from raw XML in
+~7 minutes of wall time.
+
+### 1. Data sources
+
+| Source | What we take | Scale |
+|---|---|---|
+| **GLEIF Level-1** (LEI-CDF concatenated file, CC0) | legal name, jurisdiction, legal form, addresses, `LegalEntityEvents`, and the `SuccessorEntity` predecessor→successor link | 3.31M entities, 1.17M events |
+| **GLEIF Level-2** (Relationship Records) | typed parent/subsidiary, fund-management, branch edges — used for hard negatives | 473,839 relationships |
+| **SEC EDGAR** (`company_tickers.json`) | name↔CIK crosswalk for the US public-company slice | 3,334 confident links |
+| **Wikidata** (SPARQL P156 *followed by*) | marquee, hand-curated M&A as a supplement / cross-check | 302 both-side-matched pairs |
+
+Snapshot: **2026-05-19**. Ingestion is a single streaming `lxml.iterparse` pass
+(`src/ingest/`) producing `entities.parquet`, `events.parquet`,
+`relationships.parquet` — ~302 MB, a 27× compression of the 7.5 GB source XML.
+
+### 2. Positive labels
+
+Gold positives are GLEIF `SuccessorEntity` links (predecessor-LEI → successor-LEI),
+maintained by GLEIF's Local Operating Units — direct supervision, no annotation.
+Of 50,202 records with a successor element, **33,645** have a resolvable successor
+LEI. A five-class auto-classifier (documented event type + normalized name delta +
+jurisdiction + legal form) keeps the four "plausibly-real" classes (**94.6%**) and
+drops `likely_administrative` (5.4%), yielding **31,817 predecessors / 31,824
+positive pairs**. (`src/benchmark/build_successor_links.py`)
+
+### 3. Hard negatives
+
+For each positive predecessor, up to 80 hard negatives across four classes
+(`src/benchmark/mine_hard_negatives.py`, deduped to **253,733** pairs):
+
+| Class | Definition | Count |
+|---|---|---:|
+| `token_overlap_same_country` | ≥2 shared content tokens, same country (fuzzy fallback) | 232,601 |
+| `same_name_diff_country` | identical normalized name, different country | 10,703 |
+| `same_name_same_country` | identical normalized name, same country | 10,208 |
+| `parent_subsidiary` | shares a Level-2 RR edge — looks related, legally distinct | 221 |
+
+Known successors are excluded from the negative set to avoid label contamination.
+**v2** (`mine_hard_negatives_v2.py`) replaces the noisy fuzzy class with
+**E5-cosine** nearest-neighbor mining (652K negs, full predecessor coverage);
+**v3** (`mine_hard_negatives_v3.py`) mines a structurally orthogonal pool with
+**char-3gram TF-IDF** cosine — used for the miner-robustness experiment below.
+
+### 4. Evaluation splits
+
+Each positive is assigned by its *anchor lifecycle event* to three held-out
+regimes (`src/benchmark/build_splits.py`); negatives follow their predecessor.
+Up to 5 negs/positive if all splits are train, up to 10 if any split is test →
+**125,519 pair rows** (`pairs.parquet`).
+
+| Split | Train | Test | Test size |
+|---|---|---|---|
+| **TIME** | anchor date < 2025-01-01 | ≥ 2025-01-01 | ~2,007 eligible anchors |
+| **EVENT** | M&A / rename / legal-form | spinoff / demerger / breakup / **absorption** | ~1,612 anchors (94.5% absorption) |
+| **JURIS** | US + GB + DE | SG + JP + BR | 88 anchors (directional, ±8.8 pp CI) |
+
+### 5. Baselines → method
+
+- **Cheap** (`src/baselines/cheap.py`): exact-name, token-set Jaccard, char-3gram TF-IDF.
+- **Encoder** (`encoder.py`): zero-shot `intfloat/e5-small-v2` cosine.
+- **LLM pairwise** (`llm_pairwise.py`): single-pair 0–10 rubric over Anthropic /
+  OpenAI / Gemini / local Ollama. *Drives paid APIs — run manually with a key.*
+- **Bi-encoder** (`src/method/train.py`): E5-small fine-tuned with state features +
+  hard negatives (InfoNCE). Modest +5–8 pp over zero-shot.
+- **Cross-encoder** (`src/method/train_cross_encoder.py`): `ms-marco-MiniLM-L-6-v2`
+  (22M, joint encoder) — **the headline method**. Joint attention over the *pair*
+  escapes the fixed-embedding ceiling that caps the bi-encoder on this anti-correlated task.
+- **Ensemble**: average of the L-6 and an L-12 (33M) cross-encoder (`v4_progression.py`).
+
+### 6. Robustness & honesty checks
+
+- **Anti-similarity baseline** (`gap_checks.py`): rank by *negated* similarity to
+  measure how much the construction can be exploited directly.
+- **2×2 miner-robustness matrix** (`compare_distributions.py` + `compute_robustness_cis.py`):
+  train on E5-neg vs TF-IDF negs × evaluate on both pools — isolates how much of the
+  gain is a within-miner artifact (answer: 2–13 pp; the rest survives, +13 to +39 pp cross-pool).
+- **Fielded retrieve-then-rerank** (`fielded_retriever.py`): bi-encoder retrieves
+  top-20 from the full 3.3M universe (same-country filter), cross-encoder reranks —
+  the deployment-realistic number.
+- **Gap checks** (`gap_checks.py`, `gap_checks2.py`): chance level, train/test entity
+  overlap + a memorization check, cross-jurisdiction recall ceiling, date hygiene,
+  per-event-type exploit transfer, temperature scaling.
+- Plus calibration (ECE/Brier), B-cubed cluster metrics, a named error taxonomy, a
+  secondary orthogonal label-quality check, and cross-dataset transfer (Magellan).
+
+---
+
+## Findings
+
+### Main results — test-set Hits@1 (and AUROC)
+
+| Method | TIME | EVENT | JURIS | TIME AUROC | EVENT AUROC | JURIS AUROC |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| zero-shot E5-small | 0.202 | 0.224 | 0.432 | 0.315 | 0.386 | 0.648 |
+| v2 bi-encoder | 0.249 | 0.292 | 0.500 | 0.405 | 0.457 | 0.694 |
+| **L-6 cross-encoder** (headline) | **0.605** | **0.564** | **0.750** | **0.836** | **0.825** | **0.868** |
+| L-6×L-12 ensemble (best) | 0.700 | 0.677 | 0.784 | — | — | — |
+| *anti-similarity exploit* (curated) | *0.677* | *0.607* | *0.500* | *0.807* | *0.734* | *0.677* |
+| **Fielded end-to-end** (L-6) | **0.15–0.29** | | | | | |
+
+Three things to read off this table:
+
+1. **Every similarity baseline is sub-0.5 AUROC on TIME/EVENT** — *worse than random* —
+   because the construction makes name similarity anti-predictive. This is the result
+   that justifies the benchmark, and it is a property of the *construction*, not a
+   universal claim about ER.
+2. **The cross-encoder is the only method that lifts AUROC above 0.8 on TIME/EVENT.**
+   Joint encoding asks whether the *differences* between two records look like a
+   lifecycle-event pattern, rather than how similar two strings are.
+3. **Curated Hits@1 is gameable** — the anti-similarity exploit beats the L-6 on
+   TIME/EVENT. The cross-encoder's real claim is being strong *simultaneously* on the
+   curated pool, the alternative-miner pool, the fielded pool, **and** every event type.
+
+### The exploit collapses off-pool (verified via `gap_checks2.py`)
+
+| Pool / slice | anti-similarity Hits@1 | cross-encoder Hits@1 |
+|---|:-:|:-:|
+| Curated E5-neg pool (TIME/EVENT/JURIS) | 0.677 / 0.607 / 0.500 | 0.605 / 0.564 / 0.750 |
+| TF-IDF pool (different miner) | 0.191 / 0.193 / 0.155 | 0.545 / 0.528 / 0.571 |
+| Fielded pool (conditional) | 0.193 / 0.171 / 0.087 | 0.538 / 0.520 / 0.478 |
+| Pure renames (M&A 0.72) | **0.10** | 0.90 |
+
+The exploit is a one-way bet on acquirer-renaming; the cross-encoder holds across
+all of them. (These reproduce the paper's "construction cuts both ways" analysis,
+§ _The construction cuts both ways: an anti-similarity baseline_.)
+
+### Honest caveats
+
+- **In-distribution headline overstates deployment.** Curated 56–61% (TIME/EVENT)
+  drops to **15–30% end-to-end** on a fielded pipeline — the bottleneck is
+  first-stage **bi-encoder Recall@20 (33–50%)**, not the reranker.
+- **"Held-out event type" ≈ "held-out absorption."** The EVENT test set is 94.5%
+  absorption; demerger / breakup / spinoff are present but thin (n=42 / 20 / 4). The
+  +34 pp aggregate is primarily an absorption-transfer claim.
+- **JURIS is small (n=88) and directional** (±8.8 pp bootstrap CI). Read absolute
+  per-split numbers with sample sizes in mind.
+- **Survivorship / reporting bias.** GLEIF `SuccessorEntity` is voluntarily populated
+  (biases toward well-counseled regulated entities); 16,557 successors that never
+  registered an LEI are excluded.
+- **Splits are pair-level, not entity-disjoint** (32% / 21% of TIME-split test
+  candidates / golds appear in train pairs). But a memorization check shows L-6
+  Hits@1 on *unseen* golds is **no lower** (0.618 vs 0.566 on TIME) — leakage is not
+  driving the result. Entity-disjoint splits are a stricter future design.
+- **All three miners share a name axis** (token-overlap, E5-cosine, TF-IDF char-3gram).
+  The one non-name negative class (`parent_subsidiary`, n=221) is both tiny and the
+  only class the cross-encoder regresses on (0.45→0.78 mean score) — the fielded
+  result is the genuinely name-orthogonal evidence.
+
+---
+
+## Reproducing
+
+Requires the latest GLEIF Level-1 and Level-2 golden-copy XML (from
+<https://goldencopy.gleif.org/>, published every 8 hours, CC0). Place them at the
+project root, then `pip install -r requirements.txt`.
+
+### Phase 0 — viability spikes
 ```bash
-# 1A — typed corpus from GLEIF Level-1 + Level-2 XML
+python3 gleif_audit.py              # ~50s — viability audit
+python3 validate_successor_pairs.py # ~90s — label-quality check
+python3 lei_cik_crosswalk.py        # ~50s — LEI↔CIK feasibility (edit UA email first)
+```
+
+### Phase 1 — build Sylvester v1 (raw XML → benchmark, ~7 min)
+```bash
 python3 src/ingest/gleif_to_parquet.py    --xml <Level1.xml> --out data/   # ~160s
 python3 src/ingest/gleif_rr_to_parquet.py --xml <RR.xml>     --out data/   # ~10s
 python3 src/benchmark/build_successor_links.py --data data/                # ~3s
-
-# 1B — hard negatives + eval splits
-python3 src/benchmark/mine_hard_negatives.py --data data/                  # ~5 min
-python3 src/benchmark/build_splits.py        --data data/                  # ~10s
-
-# 1C — Wikidata marquee supplement
-python3 src/benchmark/wikidata_marquee.py    --data data/                  # ~30s
+python3 src/benchmark/mine_hard_negatives.py   --data data/                # ~5 min
+python3 src/benchmark/build_splits.py          --data data/                # ~10s
+python3 src/benchmark/wikidata_marquee.py      --data data/                # ~30s
 ```
 
-Total ~7 minutes from raw XML to `data/pairs.parquet` (125K labeled pair
-rows with three split regimes) + `data/wikidata_marquee.parquet`
-(302 famous-case matches).
-
-The XML inputs come from
-<https://goldencopy.gleif.org/> (Level-1 LEI2 + Level-2 RR
-golden-copy files, published every 8 hours, all CC0).
-
-## Running baselines (Phase 2)
-
+### Phase 2 — baselines
 ```bash
-python3 src/baselines/cheap.py   --data data/   # ~1s  — exact_name, token_set, tfidf_char
-python3 src/baselines/encoder.py --data data/   # ~40s — E5-small-v2 zero-shot
-python3 src/eval/evaluate.py     --data data/   # ~7s  — AUROC, AUPRC, Hits@K, MRR, per-class breakdown
+python3 src/baselines/cheap.py   --data data/   # exact_name, token_set, tfidf_char
+python3 src/baselines/encoder.py --data data/   # E5-small-v2 zero-shot
+python3 src/eval/evaluate.py     --data data/   # AUROC, AUPRC, Hits@K, MRR
+```
+LLM pairwise drives paid APIs and is **not** run autonomously. It needs a key
+(`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`). The runner is
+money-safe by default: it prints a cost estimate and asks for confirmation
+(`--yes` to skip), checkpoints every result to a JSONL log as it lands, resumes
+interrupted runs with `--resume` (only unscored pairs are re-billed), pins
+`temperature=0`, retries transient errors with backoff, and fail-fasts after 15
+consecutive hard failures (bad key / no credits). Failed pairs are excluded from
+the output — never silently scored 0 — and the eval scripts drop anchors with
+incomplete candidate pools.
+```bash
+# scope + cost preview (no key needed)
+python3 src/baselines/llm_pairwise.py --dry-run --test-anchors-per-split 2100
+# tiny paid smoke test (~$0.02), then full eval coverage (~26.6K calls)
+python3 src/baselines/llm_pairwise.py --test-anchors-per-split 2 --out-name llm_haiku_smoke
+python3 src/baselines/llm_pairwise.py --test-anchors-per-split 2100 --out-name llm_haiku_full
+python3 src/eval/eval_llm_sample.py --pred llm_haiku_full          # per-model Hits@1/MRR
+python3 src/eval/eval_llm_panel.py  --preds llm_haiku_full ...     # cross-model, shared anchors
 ```
 
-LLM pairwise baseline (Anthropic / OpenAI) is scaffolded but not run
-autonomously — `src/baselines/llm_pairwise.py` needs an API key and budget.
-Use `--sample-frac 0.05` first for a cheap signal before paying for a full
-sweep.
-
-## Training the method (Phase 3)
-
+### Phase 3 — bi-encoder + ablations
 ```bash
-python3 src/method/train.py --data data --variant full      # ~7 min on Apple MPS
-python3 src/method/train.py --data data --variant no_state  # ablation
-python3 src/method/train.py --data data --variant no_hard   # ablation
-python3 src/eval/evaluate.py --data data                    # combined eval
+python3 src/method/train.py --data data --variant full       # name + jurisdiction + form
+python3 src/method/train.py --data data --variant no_state   # ablation
+python3 src/method/train.py --data data --variant no_hard    # ablation
+python3 src/eval/evaluate.py --data data
 ```
+3 epochs, batch 32, lr 2e-5, Apple MPS (~6 min train + ~50s inference per variant).
+Default training set is the ~26K positives that are `train` in **all three** splits
+(strict no-leakage).
 
-Each variant trains for 3 epochs at batch 32, learning rate 2e-5, and writes
-`data/predictions/method_<variant>.parquet` plus a saved checkpoint under
-`data/models/method_<variant>/`. The default training set is the
-26K positives that fall in `train` for *all three* split regimes — strict no-
-leakage. Default device is Apple MPS if available, else CUDA, else CPU.
-
-## v2 pipeline (in addition to Phase 1-3)
-
+### v2 — E5-cosine negs + transitive positives + cross-encoder (~25 min)
 ```bash
-# v2 hard-neg re-mining via E5 cosine (~7 min on Apple MPS)
-python3 src/benchmark/mine_hard_negatives_v2.py --data data/
-
-# transitive successor-chain positives (~3 s, includes intermediate_leis
-# for path-aware leakage filtering downstream)
-python3 src/benchmark/transitive_positives.py --data data/
-
-# v2 bi-encoder retrain (~7 min)
-python3 src/method/train.py --variant v2_full --data data/
-
-# v2 cross-encoder fine-tune (~10 min train + 7 min scoring on MPS)
-python3 src/method/train_cross_encoder.py --data data/
-
-# eval (with bootstrap 95% CIs on Hits@1)
+python3 src/benchmark/mine_hard_negatives_v2.py --data data/   # E5-cosine negs (~7 min)
+python3 src/benchmark/transitive_positives.py   --data data/   # A→B→C chains (~3s)
+python3 src/method/train.py --variant v2_full   --data data/   # v2 bi-encoder
+python3 src/method/train_cross_encoder.py       --data data/   # headline L-6 cross-encoder
 python3 src/eval/evaluate.py --data data/
 ```
 
-## v3 miner-robustness experiment
-
-Tests whether the cross-encoder's headline gain depends on the choice of
-hard-negative miner used to build the evaluation candidate pool. v3 uses
-char-3gram TF-IDF cosine (no learned representation, no shared parameters
-with E5) to mine an alternative pool, then trains a second cross-encoder
-on it. Both cross-encoders are scored on both pools, yielding a 2x2
-train/eval matrix.
-
+### v3 — miner-robustness 2×2
 ```bash
-# 1. mine alternative hard negatives (TF-IDF char-3gram, ~20 s CPU)
-python3 src/benchmark/mine_hard_negatives_v3.py --data data/
-
-# 2. assemble alternative pairs file with the new negs
+python3 src/benchmark/mine_hard_negatives_v3.py --data data/                          # TF-IDF negs
 python3 src/benchmark/build_splits.py --data data/ \
     --hard-negs hard_negatives_v3.parquet --out-name pairs_v3.parquet
-
-# 3. score the existing baselines on the v3 pool
-python3 src/baselines/cheap.py --data data/ \
-    --pairs pairs_v3.parquet --suffix _v3
-python3 src/baselines/encoder.py --data data/ \
-    --pairs pairs_v3.parquet --name sentence_encoder_v3
-
-# 4. retrain the cross-encoder on v2 negs and score on both pools (~17 min)
 python3 src/method/train_cross_encoder.py --data data/ \
     --hard-negs hard_negatives_v2.parquet --train-pairs pairs.parquet \
-    --extra-pairs pairs_v3.parquet --out-name method_v2_crossenc_repro
-
-# 5. train a second cross-encoder on v3 negs and score on both pools (~20 min)
+    --extra-pairs pairs_v3.parquet --out-name method_v2_crossenc_repro               # train-E5
 python3 src/method/train_cross_encoder.py --data data/ \
     --hard-negs hard_negatives_v3.parquet --train-pairs pairs_v3.parquet \
-    --extra-pairs pairs.parquet --out-name method_v3_crossenc
-
-# 6. compute and print the comparison + bootstrap CIs
+    --extra-pairs pairs.parquet --out-name method_v3_crossenc                        # train-TFIDF
 python3 src/eval/compare_distributions.py --data data/ --skip-ci
 python3 src/eval/compute_robustness_cis.py
 ```
 
-## Additional diagnostics (Phase v3.5)
-
+### Diagnostics & robustness (Phase v3.5)
 ```bash
-# Cost & latency table per method (CPU timing + LLM list prices)
-python3 src/eval/cost_latency.py
-
-# Reliability diagram + ECE/Brier on cross-encoder
-python3 src/eval/calibration.py
-
-# B-cubed cluster precision/recall (Binette 2024 style)
-python3 src/eval/cluster_metrics.py
-
-# Named error taxonomy on cross-encoder failures (50 per split)
-python3 src/eval/error_taxonomy.py
-
-# Secondary auto-classifier label-quality check (label-noise lower bound)
-python3 src/eval/human_validation.py --data data --n 300        # sample
-python3 src/eval/secondary_label_check.py                        # label heuristically
-python3 src/eval/human_validation.py --data data --report        # report agreement
-
-# Cross-dataset transfer (run trained CE on Magellan Walmart-Amazon)
-python3 src/method/score_external.py \
-    --model-dir data/models/method_v2_crossenc_saved \
-    --test-file /tmp/magellan/walmart_amazon_test.txt \
-    --train-file /tmp/magellan/walmart_amazon_train.txt \
-    --out data/predictions/method_v2_crossenc_on_walmart_amazon.parquet
-
-# Larger backbones (E5-base bi-encoder + MiniLM-L-12 cross-encoder)
-python3 src/method/train.py --data data --variant v2_full \
-    --base-model intfloat/e5-base-v2 --out-name method_v2_full_e5base
-python3 src/method/train_cross_encoder.py --data data \
-    --hard-negs hard_negatives_v2.parquet --train-pairs pairs.parquet \
-    --base-model cross-encoder/ms-marco-MiniLM-L-12-v2 \
-    --out-name method_v2_crossenc_L12
-
-# Data-efficiency scaling curve (bi-encoder retrains at 10/25/50/75/100% data)
-bash src/method/run_data_efficiency.sh
-python3 src/eval/data_efficiency.py
-
-# One-shot wrapper that runs cross-dataset transfer + L-12 + data-efficiency
-# in sequence after a saved v2 cross-encoder checkpoint exists
-bash src/method/chained_compute.sh
+python3 src/eval/gap_checks.py  data    # anti-sim, chance, entity overlap, recall ceiling
+python3 src/eval/gap_checks2.py data    # off-pool exploit transfer + memorization check
+python3 src/eval/cost_latency.py        # cost & latency per method
+python3 src/eval/calibration.py         # reliability diagram + ECE/Brier
+python3 src/eval/cluster_metrics.py     # B-cubed precision/recall
+python3 src/eval/error_taxonomy.py      # named failure taxonomy
+python3 src/eval/v4_progression.py      # v4→v10 enriched-prompt + ensemble progression
 ```
+> Note: these scripts have no internal time limit; on macOS do **not** prefix them
+> with `timeout` (it isn't installed and silently no-ops the run). Run them directly.
 
-## Paper draft
+---
 
-`paper/draft.tex` is a ~9-page LaTeX draft of the TemporalLink paper, with
-the full experimental story (bi-encoder + cross-encoder methods, three
-figures, Gebru-style datasheet at `paper/datasheet.md`). The draft uses
-the standard `article` class — swap to the venue style file at submission
-time. See `paper/README.md` for compile instructions.
+## Paper, datasheet, and data release
+
+- **Paper:** `paper/draft.tex` (+ `refs.bib`) — ACM `sigconf`, targeting **ICAIF 2026**
+  (8 pages incl. refs). Compile notes in `paper/README.md`.
+- **Datasheet:** `paper/datasheet.md` (Gebru et al. template).
+- **Dataset card / metadata:** `data/HF_README.md`, `data/croissant.json` (HF release
+  is a manual upload after submission).
+
+All artifacts under `data/` are gitignored and regenerated by the commands above.
+See [DATA_NOTES.md](DATA_NOTES.md) for the full chronological record (every count,
+every phase, every runtime) and [PLAN.md](PLAN.md) for the task ledger.
 
 ## License
 
-TBD — most likely MIT for code, CC-BY-4.0 for any derived datasets we release
+TBD — most likely **MIT** for code, **CC-BY-4.0** for any derived dataset we release
 (GLEIF data is itself CC0).
+</content>
+</invoke>

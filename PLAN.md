@@ -43,7 +43,7 @@ application season).
 - [x] Wikidata high-profile M&A via SPARQL P156 (`src/benchmark/wikidata_marquee.py`). 302 both-side-matched marquee pairs (Sprint→T-Mobile, Interbrew→AB-InBev, Cannon→MGM, etc.); 246 of them are NEW signal not already in GLEIF.
 - [ ] EDGAR 8-K Item 5.03 name changes — deferred; the GLEIF + Wikidata combination already exceeds the v1 size target. Add in v2 if a specific US-public-company analysis section needs the extra coverage.
 
-**Deliverable: TemporalLink v1**
+**Deliverable: Sylvester v1**
 - `pairs.parquet` — 125,519 rows (31,824 positives + 93,695 negatives) with three split assignments
 - `wikidata_marquee.parquet` — 3,590 Wikidata bindings, 302 both-side-matched marquee pairs
 - All underlying parquet tables (`entities`, `events`, `relationships`, `successor_links`, `hard_negatives`) shipped together
@@ -150,7 +150,7 @@ miner used to build the evaluation candidate pool.
 Cross-encoder gain over the baseline: $+20$ to $+40$ pp on in-distribution cells (diagonal), $+13$ to $+38$ pp on out-of-distribution cells. Gap is partly in-distribution but not purely a within-miner artifact.
 
 - [x] **v3.5 Bootstrap CIs** added to `src/eval/evaluate.py` for the main results table — jurisdiction split's headline now reported with $\pm$8.8 pp CI.
-- [x] **v3.6 Per-event-type breakdown on the event split** added via `src/eval/extended.py` — surfaces that the "held-out event type" test set is 94.7% ABSORPTION (DEMERGER, BREAKUP, SPINOFF contribute n=42, 20, 4).
+- [x] **v3.6 Per-event-type breakdown on the event split** added via `src/eval/extended.py` — surfaces that the "held-out event type" test set is 94.5% ABSORPTION (DEMERGER, BREAKUP, SPINOFF contribute n=42, 20, 4).
 - [x] **v3.7 Path-aware transitive positive filter** in `train.py` and `train_cross_encoder.py` rejects transitive (A, C) pairs whose chain crosses a train/test boundary.
 - [x] **v3.8 Paper updates:** miner-robustness section (Sec~\ref{ssec:robustness}), CI ranges in Table 1 caption, honest re-framing of anti-correlation finding as construction artifact, expanded limitations section (8 paragraphs).
 
@@ -172,7 +172,7 @@ OpenSanctions Pairs). Goal: address the top reviewer concerns before ICAIF
 - [x] **v3.5.9 Benchmark comparison table** vs TempEL, OpenSanctions Pairs, Magellan, WDC Products, Ditto-WDC.
 - [x] **v3.5.10 Cross-dataset transfer** to Magellan Walmart-Amazon (`src/method/score_external.py`, `src/method/score_external_e5.py`). Honest negative result: our CE underperforms zero-shot E5 by 5.9pp AUROC, indicating domain specialization (not generic ER transferability).
 - [x] **v3.5.11 Larger bi-encoder backbone** (E5-base-v2, 110M params, 3x). TIME -0.2pp, EVENT -1.2pp, JURIS +2.3pp Hits@1 — bi-encoder ceiling is structural, not under-parameterized.
-- [ ] **v3.5.12 Larger cross-encoder backbone** (ms-marco-MiniLM-L-12-v2, 60M params, 3x) — training in progress.
+- [x] **v3.5.12 Larger cross-encoder backbone** (ms-marco-MiniLM-L-12-v2, 33M params, ~1.5x the 22.7M L-6) — done; ships as the L-12 row and the L-6×L-12 ensemble in the paper.
 - [ ] **v3.5.13 Data-efficiency scaling curve** (`src/method/run_data_efficiency.sh`): bi-encoder retrains at 10/25/50/75/100% training data — pending.
 - [x] **v3.5.14 Format swap to ACM sigconf** for ICAIF 2026 — preamble done; aggressive cut to 8 pages pending.
 - [ ] **v3.5.15 LLM panel baseline** (3-LLM minimum per Peeters/EDBT 2025 conventions: Haiku 4.5 + GPT-4o-mini + Llama-3.1-8B). User has API credits; script ready.
