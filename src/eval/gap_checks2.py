@@ -37,10 +37,14 @@ def _ranks(df_test):
 
 
 def h1_mrr(df_test):
-    a, r = _ranks(df_test)
-    if len(r) == 0:
+    from ranking import per_anchor_expected
+    eh1, errs = [], []
+    for _a, hks, err in per_anchor_expected(df_test, ks=(1,)):
+        eh1.append(hks[1])
+        errs.append(err)
+    if not eh1:
         return float("nan"), float("nan"), 0
-    return float((r == 1).mean()), float((1.0 / r).mean()), len(r)
+    return float(np.mean(eh1)), float(np.mean(errs)), len(eh1)
 
 
 print("=" * 72)

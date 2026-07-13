@@ -16,17 +16,11 @@ import pyarrow.parquet as pq
 
 
 def per_anchor_hits_and_rr(df):
-    """Yield (anchor_lei, hit_at_1, reciprocal_rank) for eligible anchors."""
-    for anchor, sub in df.groupby("anchor_lei", sort=False):
-        if sub["label"].sum() == 0 or len(sub) < 2:
-            continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pi = ranked.index[ranked["label"] == 1]
-        if len(pi) == 0:
-            continue
-        first = int(pi[0]) + 1
-        yield anchor, (1 if first == 1 else 0), 1.0 / first
+    """Yield (anchor_lei, E[hit@1], E[reciprocal_rank]) for eligible
+    anchors — exact expectations over random tie-breaking (ranking.py)."""
+    from ranking import per_anchor_expected
+    for anchor, hks, err in per_anchor_expected(df, ks=(1,)):
+        yield anchor, hks[1], err
 
 
 def bootstrap_ci(values, n_boots=500, seed=42):

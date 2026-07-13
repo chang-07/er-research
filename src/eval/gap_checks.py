@@ -47,20 +47,28 @@ def _per_anchor_ranks(df_test):
     return np.asarray(anchors), np.asarray(ranks), np.asarray(sizes)
 
 
+def _expected_arrays(df_test):
+    from ranking import per_anchor_expected
+    eh1, errs = [], []
+    for _a, hks, err in per_anchor_expected(df_test, ks=(1,)):
+        eh1.append(hks[1])
+        errs.append(err)
+    return np.asarray(eh1), np.asarray(errs)
+
+
 def retrieval(df_test):
-    _, ranks, _ = _per_anchor_ranks(df_test)
-    if len(ranks) == 0:
+    eh1, errs = _expected_arrays(df_test)
+    if len(eh1) == 0:
         return float("nan"), float("nan"), 0
-    return float((ranks == 1).mean()), float((1.0 / ranks).mean()), len(ranks)
+    return float(eh1.mean()), float(errs.mean()), len(eh1)
 
 
 def boot_ci(df_test, n_boots=200, seed=42):
-    _, ranks, _ = _per_anchor_ranks(df_test)
-    if len(ranks) == 0:
+    eh1, _ = _expected_arrays(df_test)
+    if len(eh1) == 0:
         return float("nan"), float("nan")
     rng = np.random.default_rng(seed)
-    hit = (ranks == 1).astype(np.int8)
-    boots = [hit[rng.integers(0, len(hit), len(hit))].mean()
+    boots = [eh1[rng.integers(0, len(eh1), len(eh1))].mean()
              for _ in range(n_boots)]
     return float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))
 

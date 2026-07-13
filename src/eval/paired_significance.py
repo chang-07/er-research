@@ -1,20 +1,21 @@
-"""Paired significance test on per-anchor Hits@1 differences.
+"""Paired significance test on per-anchor E[Hits@1] differences.
 
 For each (model_A, model_B, split) triple where both models scored the
 same anchor set, computes:
-  - McNemar's exact test (textbook for paired binary outcomes)
-  - Paired permutation test (no distributional assumption)
-  - 95% CI on the mean Hits@1 difference (paired bootstrap)
-  - Effect size (mean difference) and discordant pair counts
+  - Paired permutation (sign-flip) test — valid for the fractional
+    per-anchor expected hits produced by fair tie-breaking (ranking.py)
+  - 95% CI on the mean E[Hits@1] difference (paired bootstrap)
+  - Effect size and per-side advantage counts
 
-This is the headline test for "the cross-encoder beats Haiku by 30+pp"
-type claims. McNemar is appropriate because each anchor either does or
-doesn't get its truth ranked first — paired binary outcome per anchor.
+McNemar's exact test was dropped when the eval moved to expectation-
+over-tie-permutations: outcomes are no longer binary per anchor. The
+permutation test makes no distributional assumption and handles
+fractional paired differences directly.
 
 Usage:
   python3 src/eval/paired_significance.py \\
       --pairs pairs.parquet \\
-      --model-a method_v2_crossenc --model-b llm_haiku_panel
+      --model-a method_v2_crossenc --model-b llm_haiku_full
 """
 import argparse
 import os
@@ -26,17 +27,11 @@ import pyarrow.parquet as pq
 
 
 def per_anchor_hits(df):
-    """Yield (anchor_lei, hit_at_1) for eligible anchors with at least
-    one positive and at least 2 candidates."""
-    for anchor, sub in df.groupby("anchor_lei", sort=False):
-        if sub["label"].sum() == 0 or len(sub) < 2:
-            continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pi = ranked.index[ranked["label"] == 1]
-        if len(pi) == 0:
-            continue
-        yield anchor, (1 if int(pi[0]) == 0 else 0)
+    """Yield (anchor_lei, E[hit@1]) for eligible anchors — exact
+    expectation over uniformly random tie-breaking (see ranking.py)."""
+    from ranking import per_anchor_expected
+    for anchor, hks, _err in per_anchor_expected(df, ks=(1,)):
+        yield anchor, hks[1]
 
 
 def mcnemar_exact(b, c):
@@ -143,17 +138,17 @@ def main():
         hb = np.array([h_b[k] for k in common])
         d = ha - hb  # ∈ {-1, 0, 1}
 
-        a_only = int(((ha == 1) & (hb == 0)).sum())
-        b_only = int(((ha == 0) & (hb == 1)).sum())
-        # both_hit = int(((ha == 1) & (hb == 1)).sum())
-        # both_miss = int(((ha == 0) & (hb == 0)).sum())
+        a_only = int((d > 0).sum())   # anchors where A holds the advantage
+        b_only = int((d < 0).sum())
 
         ci_lo, ci_hi = paired_bootstrap_ci(d)
-        p_mcnemar = mcnemar_exact(a_only, b_only)
+        p_mcnemar = float("nan")  # not applicable to fractional outcomes
         p_perm = permutation_test(d)
 
         # Format p-values cleanly
         def fmt_p(p):
+            if p != p:
+                return "n/a"
             if p < 1e-4:
                 return "<1e-4"
             if p < 1e-3:

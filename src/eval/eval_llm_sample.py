@@ -20,20 +20,16 @@ import pyarrow.parquet as pq
 
 
 def hits1_mrr_with_ci(df, n_boots=500, seed=42):
-    """Return (Hits@1 mean+CI, MRR mean+CI, n_anchors)."""
+    """Return (E[Hits@1] mean+CI, E[MRR] mean+CI, n_anchors).
+
+    Expectations over uniformly random tie-breaking (ranking.py) — the
+    legacy fixed shuffle systematically penalized discrete scorers."""
+    from ranking import per_anchor_expected
     rng = np.random.default_rng(seed)
     hits, ranks = [], []
-    for anchor, sub in df.groupby("anchor_lei", sort=False):
-        if sub["label"].sum() == 0 or len(sub) < 2:
-            continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pi = ranked.index[ranked["label"] == 1]
-        if len(pi) == 0:
-            continue
-        first = int(pi[0]) + 1
-        hits.append(1 if first == 1 else 0)
-        ranks.append(1.0 / first)
+    for _anchor, hks, err in per_anchor_expected(df, ks=(1,)):
+        hits.append(hks[1])
+        ranks.append(err)
     if not hits:
         return (float("nan"),) * 6 + (0,)
     h = np.asarray(hits, dtype=float)

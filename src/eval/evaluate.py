@@ -69,37 +69,45 @@ def _per_anchor_ranks(df_test):
     return np.asarray(anchors), np.asarray(ranks)
 
 
+def _per_anchor_expected_arrays(df_test):
+    from ranking import per_anchor_expected
+    anchors, eh1, eh3, errs = [], [], [], []
+    for anchor, hks, err in per_anchor_expected(df_test):
+        anchors.append(anchor)
+        eh1.append(hks[1])
+        eh3.append(hks[3])
+        errs.append(err)
+    return (np.asarray(anchors), np.asarray(eh1),
+            np.asarray(eh3), np.asarray(errs))
+
+
 def retrieval_metrics(df_test):
     """Per-anchor retrieval: rank the true successor among candidates.
 
-    For each anchor LEI with at least one positive, sort its candidates by
-    score (desc) and look at the position of the positive. Returns mean
-    Hits@1, Hits@3, MRR over anchors with a positive.
+    Metrics are exact expectations over uniformly random tie-breaking
+    (see ranking.py) — the legacy fixed-permutation tie-break was
+    systematically anti-gold for discrete scorers. Returns mean
+    E[Hits@1], E[Hits@3], E[MRR] over anchors with a positive.
     """
-    _, ranks = _per_anchor_ranks(df_test)
-    if len(ranks) == 0:
+    _, eh1, eh3, errs = _per_anchor_expected_arrays(df_test)
+    if len(eh1) == 0:
         return 0.0, 0.0, 0.0, 0
-    h1 = float((ranks == 1).mean())
-    h3 = float((ranks <= 3).mean())
-    mrr = float((1.0 / ranks).mean())
-    return h1, h3, mrr, int(len(ranks))
+    return (float(eh1.mean()), float(eh3.mean()),
+            float(errs.mean()), int(len(eh1)))
 
 
 def bootstrap_hits1_ci(df_test, n_boots=200, seed=42):
-    """Bootstrap 95% CI on Hits@1 by resampling anchors (with their full candidate
-    sets) with replacement. Returns (lo, hi). Falls back to (nan, nan) if no
-    anchors with positives are present.
-    """
-    anchors, ranks = _per_anchor_ranks(df_test)
+    """Bootstrap 95% CI on E[Hits@1] by resampling anchors (with their
+    full candidate sets) with replacement. Returns (lo, hi)."""
+    anchors, eh1, _, _ = _per_anchor_expected_arrays(df_test)
     if len(anchors) == 0:
         return float("nan"), float("nan")
     rng = np.random.default_rng(seed)
     n = len(anchors)
     boots = np.empty(n_boots, dtype=float)
-    is_hit = (ranks == 1).astype(np.int8)
     for i in range(n_boots):
         idx = rng.integers(0, n, size=n)
-        boots[i] = is_hit[idx].mean()
+        boots[i] = eh1[idx].mean()
     return float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))
 
 def main():
