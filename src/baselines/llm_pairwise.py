@@ -25,9 +25,15 @@ Money-safety rails:
   * retries + backoff  transient API errors are retried with
                        exponential backoff (--max-retries, default 4),
                        honoring provider Retry-After hints.
-  * fail-fast          15 consecutive hard failures aborts the run
-                       (bad key / no credits / outage) instead of
-                       burning through the whole pair list.
+  * fail-fast          15 consecutive PERMANENT failures (bad key /
+                       bad param / bad model) abort the run. Rate
+                       limits, 5xx and network errors NEVER abort a
+                       healthy run: they retry indefinitely with
+                       adaptive (AIMD) pacing, so an overnight throttle
+                       storm or provider outage pauses the run instead
+                       of killing it. A fresh run that has never
+                       succeeded keeps strict fail-fast, so an endpoint
+                       typo still aborts in seconds.
   * errors excluded    pairs that still fail after retries are logged
                        with score=null and EXCLUDED from the output
                        parquet — never silently scored 0.0. The eval
@@ -102,6 +108,15 @@ PRICES = {
     "gpt-4o":            (2.50, 10.00, None),
     "gemini-2.5-flash":  (0.30, 2.50, None),
     "gemini-2.5-pro":    (1.25, 10.00, None),
+    # Preview id (verified 2026-07). Thinking tokens bill as output and are
+    # NOT in this estimate — validate with a smoke run + console billing
+    # check before any full run on a thinking-default model.
+    "gemini-3.1-pro":    (2.00, 12.00, None),
+    # Verified 2026-07 on api-docs.deepseek.com. Thinking is DEFAULT on
+    # V4 — run with --thinking off for protocol-consistent (and cheap)
+    # non-reasoning scoring; non-thinking mode supports temperature.
+    "deepseek-v4-pro":   (0.435, 0.87, None),
+    "deepseek-v4-flash": (0.14, 0.28, None),
 }
 # Per-call token shape measured on the June 2026 Haiku panel run:
 # ~165-token system prefix, ~90 marginal user tokens; output measured at
@@ -119,16 +134,23 @@ def price_for(model):
 
 def estimate_usd(n_calls, model, provider):
     """Estimated dollars for n_calls, or None if the model has no list
-    price on file. Excludes the one-time prompt-cache write (<$0.01)."""
+    price on file.
+
+    NOTE: no prompt-cache discount is applied for Anthropic models even
+    though call_anthropic sets cache_control — the minimum cacheable
+    prefix is 4096 tokens on Haiku 4.5 / Opus 4.7 (2048 on Sonnet 4.6),
+    and our ~165-token system prompt is far below it, so the marker is
+    silently inert and the system prefix bills at full input price.
+    (Verified empirically on the July 2026 Haiku full run: actual spend
+    matched full-price input, not cache-read pricing.)"""
     p = price_for(model)
     if p is None:
         return None
-    p_in, p_out, p_cache = p
-    if provider == "anthropic" and p_cache is not None:
-        per_call = TOK_USER * p_in + TOK_SYSTEM * p_cache + TOK_OUT * p_out
-    else:
-        per_call = (TOK_SYSTEM + TOK_USER) * p_in + TOK_OUT * p_out
-    return n_calls * per_call / 1_000_000.0
+    p_in, p_out, _p_cache = p
+    return n_calls * ((TOK_SYSTEM + TOK_USER) * p_in
+                       + estimate_usd.out_tokens * p_out) / 1_000_000.0
+
+estimate_usd.out_tokens = TOK_OUT  # overridable via --est-output-tokens
 
 
 def parse_response(text):
@@ -182,9 +204,11 @@ def parse_response(text):
 # SDK default of 1.0.
 # ---------------------------------------------------------------------------
 def call_anthropic(client, model, system, user, temperature):
-    # Prompt-cache the system message: it's identical across all calls, so
-    # the cache write happens once and every subsequent call pays ~10x less
-    # for the cached read.
+    # cache_control is set but INERT at this prompt size: the minimum
+    # cacheable prefix (4096 tokens on Haiku 4.5/Opus 4.7, 2048 on
+    # Sonnet 4.6) far exceeds our ~165-token system prompt, so no cache
+    # is written or read and the system bills at full input price.
+    # Kept in case the prompt is ever enriched past the threshold.
     kwargs = {}
     if temperature is not None:
         kwargs["temperature"] = temperature
@@ -199,10 +223,20 @@ def call_anthropic(client, model, system, user, temperature):
     return msg.content[0].text if msg.content else ""
 
 
-def call_openai(client, model, system, user, temperature, max_tokens=100):
+def call_openai(client, model, system, user, temperature, max_tokens=100,
+                reasoning_effort=None, extra_body=None):
     kwargs = {}
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if reasoning_effort:
+        # Thinking models (Gemini 2.5/3.x Pro via the OpenAI-compat
+        # endpoint, o-series) bill thinking as output tokens; "low" cuts
+        # cost ~2.5x. Gemini Pro models reject "none" (thinking-only).
+        kwargs["reasoning_effort"] = reasoning_effort
+    if extra_body:
+        # Provider-specific request fields, e.g. DeepSeek V4's
+        # {"thinking": {"type": "disabled"}} (thinking is their default).
+        kwargs["extra_body"] = extra_body
     msg = client.chat.completions.create(
         model=model, max_tokens=max_tokens,
         messages=[{"role": "system", "content": system},
@@ -228,29 +262,75 @@ def call_gemini(model_obj, system, user):
 
 
 class RateLimiter:
-    """Shared min-interval gate across worker threads (0 qps = off)."""
+    """Shared adaptive dispatch gate across worker threads (0 qps = off).
+
+    AIMD, like TCP: each throttle signal (429/503/529) doubles the
+    dispatch interval (capped at 60s); each success decays it back
+    toward the configured rate. A fixed-interval gate overshoots
+    per-minute quota windows precisely when the provider is already
+    throttling — adapting to feedback does not."""
 
     def __init__(self, qps):
-        self.min_interval = (1.0 / qps) if qps and qps > 0 else 0.0
+        self.base = (1.0 / qps) if qps and qps > 0 else 0.0
+        self.interval = self.base
         self.lock = threading.Lock()
         self.next_t = 0.0
 
     def wait(self):
-        if not self.min_interval:
-            return
         with self.lock:
+            iv = self.interval
+            if not iv:
+                return
             now = time.monotonic()
             t = max(self.next_t, now)
-            self.next_t = t + self.min_interval
+            self.next_t = t + iv
         if t > now:
             time.sleep(t - now)
 
+    def on_throttle(self):
+        with self.lock:
+            self.interval = min(max(self.interval, self.base, 0.25) * 2.0, 60.0)
 
-def call_with_retry(call, system, user, max_retries, limiter, abort_evt):
-    """Call with qps throttle + exponential backoff. Raises after the
-    final attempt fails; honors Retry-After response headers if present."""
+    def on_success(self):
+        with self.lock:
+            if self.interval > self.base:
+                self.interval = max(self.base, self.interval * 0.98)
+
+
+PERMANENT_TYPES = ("BadRequestError", "AuthenticationError", "NotFoundError",
+                   "PermissionDeniedError", "UnprocessableEntityError")
+TRANSIENT_TYPES = ("RateLimitError", "APIConnectionError", "APITimeoutError",
+                   "InternalServerError")
+TRANSIENT_STATUS = {408, 429, 500, 502, 503, 504, 529}
+
+
+def _retry_after_s(e):
+    headers = getattr(getattr(e, "response", None), "headers", None)
+    if headers is not None:
+        try:
+            return float(headers.get("retry-after") or 0) or None
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def call_with_retry(call, system, user, max_retries, limiter, abort_evt,
+                     patient=lambda: False):
+    """Error-class-aware retry. Every attempt passes the shared limiter.
+
+    * Permanent 4xx (bad param/model/key): raise immediately — retrying
+      can never succeed; fail-fast surfaces the real message.
+    * Transient (rate limit, 5xx, network): once the run is healthy
+      (patient() True, i.e. at least one success), retry INDEFINITELY
+      with escalating sleeps and adaptive rate reduction — an overnight
+      throttle storm or provider outage pauses the run, never kills it.
+      On a fresh run that has never succeeded (endpoint typo, dead
+      port), transient errors stay bounded so fail-fast still aborts.
+    * Anything else: bounded by max_retries with jittered backoff.
+    """
+    attempts = 0
     delay = 1.0
-    for attempt in range(max_retries + 1):
+    while True:
         if abort_evt.is_set():
             raise RuntimeError("aborted (fail-fast triggered)")
         limiter.wait()
@@ -258,19 +338,26 @@ def call_with_retry(call, system, user, max_retries, limiter, abort_evt):
             text = call(system, user)
             if not (text or "").strip():
                 raise RuntimeError("empty response body")
+            limiter.on_success()
             return text
         except Exception as e:
-            if attempt >= max_retries:
+            name = type(e).__name__
+            if name in PERMANENT_TYPES:
                 raise
-            retry_after = None
-            resp = getattr(e, "response", None)
-            headers = getattr(resp, "headers", None)
-            if headers is not None:
-                try:
-                    retry_after = float(headers.get("retry-after") or 0) or None
-                except (TypeError, ValueError):
-                    retry_after = None
-            sleep_s = retry_after if retry_after else delay * (0.5 + random.random())
+            status = getattr(e, "status_code", None)
+            transient = name in TRANSIENT_TYPES or status in TRANSIENT_STATUS
+            if transient and (name == "RateLimitError"
+                               or status in (429, 503, 529)):
+                limiter.on_throttle()
+            retry_after = _retry_after_s(e)
+            if transient and patient():
+                time.sleep(min(retry_after or delay, 300.0))
+                delay = min(delay * 2.0, 120.0)
+                continue  # unlimited patience once the run is healthy
+            attempts += 1
+            if attempts > max_retries:
+                raise
+            sleep_s = retry_after or delay * (0.5 + random.random())
             time.sleep(min(sleep_s, 70.0))
             delay = min(delay * 2.0, 32.0)
 
@@ -302,6 +389,122 @@ def load_log_status(log_path):
     return status
 
 
+def select_pairs(args):
+    """Pair selection shared by the interactive and batch runners.
+    Deterministic for a given (flags, seed): --test-anchors-per-split with
+    N >= the eligible count selects ALL eligible anchors, so reruns and
+    resumes always target the identical pair set."""
+    if args.anchor_file:
+        with open(args.anchor_file) as f:
+            anchor_list = {ln.strip() for ln in f if ln.strip()}
+        pairs = pq.read_table(
+            os.path.join(args.data, "pairs.parquet"),
+            columns=["anchor_lei", "candidate_lei", "label", "source",
+                      "split_time", "split_event", "split_jurisdiction"],
+        ).to_pandas()
+        is_test = ((pairs["split_time"] == "test")
+                    | (pairs["split_event"] == "test")
+                    | (pairs["split_jurisdiction"] == "test"))
+        pairs = pairs[is_test & pairs["anchor_lei"].isin(anchor_list)].reset_index(drop=True)
+        pairs = pairs[["anchor_lei", "candidate_lei", "label", "source"]]
+        print(f"loaded {len(anchor_list):,} anchors from {args.anchor_file}", file=sys.stderr)
+        print(f"total pairs selected: {len(pairs):,}", file=sys.stderr)
+        return pairs
+    if args.test_anchors_per_split > 0:
+        # Stratified sampling: N test anchors per split, score ALL their pairs.
+        pairs = pq.read_table(
+            os.path.join(args.data, "pairs.parquet"),
+            columns=["anchor_lei", "candidate_lei", "label", "source",
+                      "split_time", "split_event", "split_jurisdiction"],
+        ).to_pandas()
+        print(f"loaded {len(pairs):,} pairs", file=sys.stderr)
+        import numpy as np
+        rng = np.random.default_rng(args.seed)
+        chosen_anchors = set()
+        for s in ("split_time", "split_event", "split_jurisdiction"):
+            test = pairs[pairs[s] == "test"]
+            eligible = [a for a, sub in test.groupby("anchor_lei")
+                          if sub["label"].sum() > 0 and len(sub) >= 2]
+            if len(eligible) <= args.test_anchors_per_split:
+                pick = eligible
+            else:
+                pick = list(rng.choice(eligible,
+                                        size=args.test_anchors_per_split,
+                                        replace=False))
+            print(f"  {s}: {len(pick)} anchors sampled "
+                  f"(from {len(eligible)} eligible)", file=sys.stderr)
+            chosen_anchors.update(pick)
+        pairs = pairs[pairs["anchor_lei"].isin(chosen_anchors)].reset_index(drop=True)
+        pairs = pairs[["anchor_lei", "candidate_lei", "label", "source"]]
+        print(f"total pairs selected: {len(pairs):,} "
+              f"(across {len(chosen_anchors):,} unique anchors)", file=sys.stderr)
+        return pairs
+    pairs = pq.read_table(
+        os.path.join(args.data, "pairs.parquet"),
+        columns=["anchor_lei", "candidate_lei", "label", "source"],
+    ).to_pandas()
+    print(f"loaded {len(pairs):,} pairs", file=sys.stderr)
+    if 0 < args.sample_frac < 1.0:
+        pairs = pairs.sample(frac=args.sample_frac, random_state=args.seed).reset_index(drop=True)
+        print(f"sampled {len(pairs):,} pairs", file=sys.stderr)
+    else:
+        print("WARNING: full-pairs run includes TRAIN rows; eval only "
+              "needs --test-anchors-per-split coverage.", file=sys.stderr)
+    return pairs
+
+
+def load_entity_map(data, lei_set):
+    """lei -> {legal_name, legal_addr_country, legal_form_code} for the
+    entities appearing in the selected pairs."""
+    ent = pq.read_table(
+        os.path.join(data, "entities.parquet"),
+        columns=["lei", "legal_name", "legal_addr_country", "legal_form_code"],
+    ).to_pandas()
+    ent = ent[ent["lei"].isin(lei_set)].drop_duplicates(subset=["lei"], keep="first")
+    return ent.set_index("lei").to_dict(orient="index")
+
+
+def build_user_prompt(a, b, no_think=False):
+    """Render the byte-identical user prompt for one (anchor, candidate)
+    entity pair — shared by the interactive and batch runners."""
+    user = USER_TEMPLATE.format(
+        a_name=a.get("legal_name", "") or "(unknown)",
+        a_country=a.get("legal_addr_country", "") or "(unknown)",
+        a_form=a.get("legal_form_code", "") or "(unknown)",
+        b_name=b.get("legal_name", "") or "(unknown)",
+        b_country=b.get("legal_addr_country", "") or "(unknown)",
+        b_form=b.get("legal_form_code", "") or "(unknown)",
+    )
+    return user + " /no_think" if no_think else user
+
+
+def rebuild_parquet_from_log(log_path, sel_set, out_path):
+    """Rebuild the predictions parquet from the JSONL log (single source
+    of truth), restricted to the current selection, last entry wins.
+    Returns (n_rows, n_api_err, n_missing)."""
+    best = {}
+    if os.path.exists(log_path):
+        with open(log_path) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                key = (e.get("pred"), e.get("cand"))
+                if key in sel_set:
+                    best[key] = (e.get("score"), str(e.get("raw") or ""))
+    rows = [(k[0], k[1], s) for k, (s, raw) in best.items()
+            if s is not None and not raw.startswith("ERROR")]
+    n_api_err = sum(1 for s, raw in best.values()
+                    if (s is None and not raw.startswith("MISSING_ENTITY"))
+                    or raw.startswith("ERROR"))
+    n_missing = sum(1 for s, raw in best.values()
+                    if raw.startswith("MISSING_ENTITY"))
+    out = pd.DataFrame(rows, columns=["anchor_lei", "candidate_lei", "score"])
+    out.to_parquet(out_path, compression="snappy", index=False)
+    return len(out), n_api_err, n_missing
+
+
 def main():
     # Shells launching this in the background (&, nohup, CI) often inherit
     # SIGINT as ignored, which would make `kill -INT <pid>` a silent no-op
@@ -324,7 +527,8 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.0,
                     help="sampling temperature, pinned explicitly (paper "
                          "protocol: 0). Pass -1 to omit the parameter for "
-                         "models that reject it (e.g. gpt-5 family).")
+                         "models that reject it (claude-opus-4-7, gpt-5 "
+                         "family return 400 'temperature is deprecated').")
     ap.add_argument("--sample-frac", type=float, default=0.05,
                     help="LEGACY: fraction of ALL pairs (train included); "
                          "1.0 = full 125K run. Ignored when "
@@ -365,6 +569,26 @@ def main():
                     help="override endpoint for --provider openai/ollama "
                          "(vLLM, LM Studio, mock). ollama default: "
                          "http://localhost:11434/v1")
+    ap.add_argument("--max-tokens", type=int, default=100,
+                    help="response token cap. Thinking models (Gemini Pro) "
+                         "consume this on reasoning BEFORE the answer — "
+                         "use 1500 so the score isn't truncated; unused "
+                         "headroom is not billed.")
+    ap.add_argument("--reasoning-effort", default="",
+                    choices=["", "low", "medium", "high"],
+                    help="openai-provider only: reasoning_effort for "
+                         "thinking models (Gemini Pro via compat endpoint, "
+                         "o-series). 'low' recommended for cost.")
+    ap.add_argument("--thinking", default="",
+                    choices=["", "on", "off"],
+                    help="openai-provider only: explicit thinking toggle "
+                         "for DeepSeek V4 (thinking is their DEFAULT — "
+                         "pass 'off' for protocol-consistent non-reasoning "
+                         "scoring; non-thinking mode supports temperature).")
+    ap.add_argument("--est-output-tokens", type=int, default=0,
+                    help="override the output-token assumption in the cost "
+                         "gate (default 60). Use ~150 for Gemini Pro at "
+                         "low reasoning effort (thinking bills as output).")
     ap.add_argument("--no-think", action="store_true",
                     help="for Qwen3 thinking models: append '/no_think' to "
                          "the user prompt (10x speedup; small quality cost).")
@@ -373,62 +597,7 @@ def main():
     temperature = None if args.temperature < 0 else args.temperature
 
     # ---- pair selection (no API key needed for any of this) -------------
-    if args.anchor_file:
-        with open(args.anchor_file) as f:
-            anchor_list = {ln.strip() for ln in f if ln.strip()}
-        pairs = pq.read_table(
-            os.path.join(args.data, "pairs.parquet"),
-            columns=["anchor_lei", "candidate_lei", "label", "source",
-                      "split_time", "split_event", "split_jurisdiction"],
-        ).to_pandas()
-        is_test = ((pairs["split_time"] == "test")
-                    | (pairs["split_event"] == "test")
-                    | (pairs["split_jurisdiction"] == "test"))
-        pairs = pairs[is_test & pairs["anchor_lei"].isin(anchor_list)].reset_index(drop=True)
-        pairs = pairs[["anchor_lei", "candidate_lei", "label", "source"]]
-        print(f"loaded {len(anchor_list):,} anchors from {args.anchor_file}", file=sys.stderr)
-        print(f"total pairs selected: {len(pairs):,}", file=sys.stderr)
-    elif args.test_anchors_per_split > 0:
-        # Stratified sampling: N test anchors per split, score ALL their pairs.
-        # This yields a proper Hits@1-evaluable subset per split.
-        pairs = pq.read_table(
-            os.path.join(args.data, "pairs.parquet"),
-            columns=["anchor_lei", "candidate_lei", "label", "source",
-                      "split_time", "split_event", "split_jurisdiction"],
-        ).to_pandas()
-        print(f"loaded {len(pairs):,} pairs", file=sys.stderr)
-        import numpy as np
-        rng = np.random.default_rng(args.seed)
-        chosen_anchors = set()
-        for s in ("split_time", "split_event", "split_jurisdiction"):
-            test = pairs[pairs[s] == "test"]
-            eligible = [a for a, sub in test.groupby("anchor_lei")
-                          if sub["label"].sum() > 0 and len(sub) >= 2]
-            if len(eligible) <= args.test_anchors_per_split:
-                pick = eligible
-            else:
-                pick = list(rng.choice(eligible,
-                                        size=args.test_anchors_per_split,
-                                        replace=False))
-            print(f"  {s}: {len(pick)} anchors sampled "
-                  f"(from {len(eligible)} eligible)", file=sys.stderr)
-            chosen_anchors.update(pick)
-        pairs = pairs[pairs["anchor_lei"].isin(chosen_anchors)].reset_index(drop=True)
-        pairs = pairs[["anchor_lei", "candidate_lei", "label", "source"]]
-        print(f"total pairs selected: {len(pairs):,} "
-              f"(across {len(chosen_anchors):,} unique anchors)", file=sys.stderr)
-    else:
-        pairs = pq.read_table(
-            os.path.join(args.data, "pairs.parquet"),
-            columns=["anchor_lei", "candidate_lei", "label", "source"],
-        ).to_pandas()
-        print(f"loaded {len(pairs):,} pairs", file=sys.stderr)
-        if 0 < args.sample_frac < 1.0:
-            pairs = pairs.sample(frac=args.sample_frac, random_state=args.seed).reset_index(drop=True)
-            print(f"sampled {len(pairs):,} pairs", file=sys.stderr)
-        else:
-            print("WARNING: full-pairs run includes TRAIN rows; eval only "
-                  "needs --test-anchors-per-split coverage.", file=sys.stderr)
+    pairs = select_pairs(args)
 
     out_dir = os.path.join(args.data, "predictions")
     out_path = os.path.join(out_dir, f"{args.out_name}.parquet")
@@ -449,6 +618,8 @@ def main():
     n_todo = len(todo)
 
     # ---- cost estimate + gates ------------------------------------------
+    if args.est_output_tokens > 0:
+        estimate_usd.out_tokens = args.est_output_tokens
     est = estimate_usd(n_todo, args.model, args.provider)
     if args.provider == "ollama":
         cost_str = "$0.00 (local)"
@@ -460,7 +631,10 @@ def main():
           f"temperature: {temperature}", file=sys.stderr)
     print(f"pairs: {len(pairs):,} selected, {len(done):,} done, "
           f"{n_todo:,} to score", file=sys.stderr)
-    print(f"est. cost for this run: {cost_str}", file=sys.stderr)
+    print(f"est. cost for this run: {cost_str} "
+          f"(assumes ~{estimate_usd.out_tokens} output tok/call; thinking "
+          f"models bill reasoning as output — see --est-output-tokens)",
+          file=sys.stderr)
     print(f"predictions -> {out_path}\nlog -> {log_path}\n", file=sys.stderr)
 
     if args.dry_run:
@@ -510,7 +684,15 @@ def main():
                 print("set OPENAI_API_KEY", file=sys.stderr); sys.exit(1)
             client = OpenAI(base_url=args.base_url or None,
                             api_key=api_key or "local")
-            call = lambda s, u: call_openai(client, args.model, s, u, temperature)
+            extra = None
+            if args.thinking:
+                extra = {"thinking": {"type": "enabled" if args.thinking == "on"
+                                               else "disabled"}}
+            call = lambda s, u: call_openai(
+                client, args.model, s, u, temperature,
+                max_tokens=args.max_tokens,
+                reasoning_effort=args.reasoning_effort or None,
+                extra_body=extra)
         elif args.provider == "ollama":
             # OpenAI-compatible endpoint; no key. max_tokens bumped because
             # thinking models emit a reasoning trace before the answer.
@@ -521,7 +703,8 @@ def main():
             client = OpenAI(base_url=args.base_url or "http://localhost:11434/v1",
                             api_key="ollama")
             call = lambda s, u: call_openai(client, args.model, s, u,
-                                            temperature, max_tokens=1500)
+                                            temperature,
+                                            max_tokens=max(1500, args.max_tokens))
         else:  # gemini
             try:
                 import google.generativeai as genai
@@ -542,13 +725,8 @@ def main():
             call = lambda s, u: call_gemini(gem_model, s, u)
 
     # ---- entity metadata --------------------------------------------------
-    lei_set = set(pairs["anchor_lei"]) | set(pairs["candidate_lei"])
-    ent = pq.read_table(
-        os.path.join(args.data, "entities.parquet"),
-        columns=["lei", "legal_name", "legal_addr_country", "legal_form_code"],
-    ).to_pandas()
-    ent = ent[ent["lei"].isin(lei_set)].drop_duplicates(subset=["lei"], keep="first")
-    ent_map = ent.set_index("lei").to_dict(orient="index")
+    ent_map = load_entity_map(
+        args.data, set(pairs["anchor_lei"]) | set(pairs["candidate_lei"]))
     os.makedirs(out_dir, exist_ok=True)
 
     # ---- concurrent dispatch ----------------------------------------------
@@ -579,19 +757,11 @@ def main():
             record(True)  # data gap, not an API failure
             return (idx, r["anchor_lei"], r["candidate_lei"], None,
                     int(r["label"]), "MISSING_ENTITY")
-        user = USER_TEMPLATE.format(
-            a_name=a.get("legal_name", "") or "(unknown)",
-            a_country=a.get("legal_addr_country", "") or "(unknown)",
-            a_form=a.get("legal_form_code", "") or "(unknown)",
-            b_name=b.get("legal_name", "") or "(unknown)",
-            b_country=b.get("legal_addr_country", "") or "(unknown)",
-            b_form=b.get("legal_form_code", "") or "(unknown)",
-        )
-        if args.no_think:
-            user = user + " /no_think"
+        user = build_user_prompt(a, b, args.no_think)
         try:
             text = call_with_retry(call, PROMPT_SYSTEM, user,
-                                    args.max_retries, limiter, abort_evt)
+                                    args.max_retries, limiter, abort_evt,
+                                    patient=lambda: state["ok"] > 0)
             score, raw = parse_response(text)
             record(True)
         except Exception as e:
@@ -636,30 +806,11 @@ def main():
                 pool.shutdown(wait=False, cancel_futures=True)
 
     # ---- rebuild the parquet from the log (single source of truth) --------
-    sel_set = set(sel_keys)
-    best = {}
-    if os.path.exists(log_path):
-        with open(log_path) as f:
-            for line in f:
-                try:
-                    e = json.loads(line)
-                except ValueError:
-                    continue
-                key = (e.get("pred"), e.get("cand"))
-                if key in sel_set:
-                    best[key] = (e.get("score"), str(e.get("raw") or ""))
-    rows = [(k[0], k[1], s) for k, (s, raw) in best.items()
-            if s is not None and not raw.startswith("ERROR")]
-    n_api_err = sum(1 for s, raw in best.values()
-                    if (s is None and not raw.startswith("MISSING_ENTITY"))
-                    or raw.startswith("ERROR"))
-    n_missing = sum(1 for s, raw in best.values()
-                    if raw.startswith("MISSING_ENTITY"))
-    out = pd.DataFrame(rows, columns=["anchor_lei", "candidate_lei", "score"])
-    out.to_parquet(out_path, compression="snappy", index=False)
+    n_rows, n_api_err, n_missing = rebuild_parquet_from_log(
+        log_path, set(sel_keys), out_path)
 
     elapsed = time.time() - t0
-    print(f"\nwrote {len(out):,} scored pairs -> {out_path} "
+    print(f"\nwrote {n_rows:,} scored pairs -> {out_path} "
           f"({elapsed:.1f}s)", file=sys.stderr)
     if n_missing:
         print(f"  {n_missing:,} pairs skipped: entity metadata missing",

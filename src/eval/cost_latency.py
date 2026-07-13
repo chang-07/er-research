@@ -91,11 +91,12 @@ def llm_cost_per_1k(input_per_call=255, cached_input=165, user=85, output=60):
     rows = []
     for name, p_in, p_out, p_cache in models:
         if p_cache is not None:
-            # With prompt caching: the cached system prefix is READ on every
-            # call at the cache-read rate (~0.1x input); user tokens pay full
-            # input price. One-time cache write (1.25x on 165 tok) is
-            # negligible per 1k calls and omitted.
-            in_cost = (cached_input * p_cache * 1000 + user * p_in * 1000) / 1_000_000
+            # No cache discount despite cache_control in the runner: the
+            # ~165-token system prompt is below every current model's
+            # minimum cacheable prefix (2048-4096 tokens), so the prefix
+            # bills at full input price. Confirmed on the July 2026 Haiku
+            # full run.
+            in_cost = ((cached_input + user) * p_in * 1000) / 1_000_000
         else:
             in_cost = input_per_call * p_in * 1000 / 1_000_000
         out_cost = output * p_out * 1000 / 1_000_000
