@@ -364,7 +364,7 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
             los[(stem, s)] = np.percentile(boots, 2.5)
             his[(stem, s)] = np.percentile(boots, 97.5)
 
-    fig, ax = plt.subplots(figsize=(3.5, 2.05))
+    fig, ax = plt.subplots(figsize=(3.5, 1.9))
     n = len(MODELS)
     width = 0.13
     xg = np.arange(len(SPLITS))
