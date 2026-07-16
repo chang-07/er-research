@@ -149,10 +149,9 @@ architecture correctly identifies the true lifecycle successor?}
         the first stage, not the second.
 \end{enumerate}
 
-A prompt-enrichment and larger-backbone (12-layer, L-12) ensemble
-extension further lifts Hits@1 by 10--11\,pp on time/event
-(Table~\ref{tab:v7}); the headline result compared against baselines
-uses the single fine-tuned 6-layer (L-6) cross-encoder.
+An enriched-prompt L-6$\times$L-12 ensemble lifts Hits@1 a further
+10--11\,pp on time/event (Table~\ref{tab:v7}); baseline comparisons
+use the single fine-tuned L-6 cross-encoder.
 
 \section{Related Work}
 
@@ -289,10 +288,10 @@ Each positive gets up to 5 hard negatives if its splits are all
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.84\linewidth]{figures/fig1_event_year_histogram.pdf}
-  \caption{Volume of COMPLETED lifecycle events in GLEIF Level-1 by year and
-    event type. The 2022 cliff reflects GLEIF tightening event-reporting
-    requirements; pre-2022 data is sparser and reporting-biased.}
+  \includegraphics[width=0.72\linewidth]{figures/fig1_event_year_histogram.pdf}
+  \caption{COMPLETED lifecycle events in GLEIF Level-1 by year and
+    type. The 2022 cliff reflects tightened GLEIF reporting;
+    pre-2022 data is sparse and reporting-biased.}
   \label{fig:histogram}
 \end{figure}
 
@@ -395,10 +394,22 @@ the 88-anchor JURIS split it leads Haiku, Gemini, and DeepSeek
 statistically indistinguishable from Opus 4.7, which holds the
 higher point estimate (0.767 vs.\ 0.750, $p = 0.74$). The
 L-6$\times$L-12 ensemble beats Opus on TIME/EVENT ($p < 10^{-4}$);
-JURIS is a coin flip (0.784 vs.\ 0.767). Zero-shot quality is
-strikingly vendor-heterogeneous: every Claude model outscores both
-other vendors' frontier models on every split --- including Haiku,
-the cheapest model tested (\S\ref{sec:limitations}).
+JURIS is a coin flip (0.784 vs.\ 0.767). Figure~\ref{fig:llm_panel}
+shows the panel: zero-shot quality is strikingly
+vendor-heterogeneous --- every Claude model outscores both other
+vendors' frontier models on every split, including Haiku, the
+cheapest model tested (\S\ref{sec:limitations}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig8_llm_panel.pdf}
+  \caption{Zero-shot LLM panel vs.\ fine-tuned rerankers (lines):
+    E[Hits@1], 95\% CIs. Every LLM sits far below the 22M
+    cross-encoder on the powered splits; on JURIS ($n{=}88$) Opus
+    reaches the L-6 line (n.s.). Haiku outscores both other
+    vendors' frontier models everywhere.}
+  \label{fig:llm_panel}
+\end{figure}
 
 \subsection{Metrics}
 
@@ -420,8 +431,8 @@ intervals are $\pm$2.0\,pp (TIME), $\pm$2.3\,pp (EVENT), and $\pm$8.5\,pp
 its CI band but absolute numbers on that split should be treated as
 directional. We retest the headline
 cross-encoder on a mechanically different candidate pool
-(\S\ref{ssec:robustness}) and find the gap shrinks but does not collapse; Table~\ref{tab:v7} and
-Figure~\ref{fig:cum_gains} extend the L-6 cross-encoder to the
+(\S\ref{ssec:robustness}) and find the gap shrinks but does not
+collapse; Table~\ref{tab:v7} extends the L-6 cross-encoder to the
 L-6$\times$L-12 ensemble.
 
 \begin{table*}[t]
@@ -435,8 +446,7 @@ L-6$\times$L-12 ensemble.
     The best fine-tuned bi-encoder lifts Hits@1
     6--8\,pp over zero-shot E5-small; the cross-encoder adds a
     further 24--35\,pp and is the only method above 0.8 AUROC on
-    both time and event (every direct-similarity, LLM, and
-    bi-encoder row stays at or below 0.55 there).
+    both time and event.
     \texttt{anti-token\_set} ranks by \emph{negated} similarity ---
     strong on this constructed pool, collapsing off-pool
     (\S\ref{ssec:anti}). Hits@1/MRR are expectations over uniformly
@@ -487,7 +497,7 @@ ISO country expansion, category), Wikidata-LEI mining (259 GLEIF
 positives recovered, 49 cross-jurisdiction), multi-seed averaging,
 and ensembling with an L-12-backbone variant --- lifts Hits@1 a
 further $+10$ to $+11$\,pp on time/event ($+3$ on jurisdiction,
-inside its CI band; Table~\ref{tab:v7}, Figure~\ref{fig:cum_gains}).
+inside its CI band; Table~\ref{tab:v7}).
 The ensemble reaches 0.700 / 0.677 / 0.784 Hits@1; the headline
 result reported against baselines remains the single L-6
 cross-encoder, so that comparison stays apples-to-apples. A negative
@@ -499,14 +509,16 @@ does learn a directional predecessor$\to$successor representation.
   \centering\scriptsize
   \setlength{\tabcolsep}{2.5pt}
   \caption{Cross-encoder extensions: Hits@1 [95\% bootstrap CI].
-    Headline L-6 row repeated from Table~\ref{tab:main_results};
-    intermediates plotted in Figure~\ref{fig:cum_gains}.}
+    Headline L-6 row repeated from Table~\ref{tab:main_results}.
+    Prompt enrichment is the largest single increment on TIME/EVENT;
+    the L-12 pairing captures the JURIS gain (its CIs overlap across
+    the chain --- read per-step deltas as directional).}
   \label{tab:v7}
   \begin{tabular}{@{}l c c c@{}}
     \toprule
     Model & TIME & EVENT & JURIS \\
     \midrule
-    Cross-encoder (L-6, 22M)        & .605 [.586,.627] & .565 [.542,.589] & .750 [.659,.830] \\
+    Cross-encoder (L-6, 22M)        & .607 [.587,.627] & .569 [.546,.592] & .750 [.665,.835] \\
     + enriched prompt               & .675 [.653,.697] & .641 [.620,.662] & .750 [.659,.830] \\
     + Wikidata-LEI positives        & .694 [.669,.712] & .651 [.630,.673] & .773 [.682,.853] \\
     + L-12 backbone (33M)           & .697 [.678,.716] & .676 [.657,.697] & .761 [.670,.841] \\
@@ -515,16 +527,6 @@ does learn a directional predecessor$\to$successor representation.
   \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.88\linewidth]{figures/fig6_cumulative_gains.pdf}
-  \caption{Hits@1 across the extension chain. Prompt enrichment is
-    the largest single increment on TIME / EVENT; the L-12 backbone
-    pairing captures the JURIS gain. JURIS CIs ($\pm$8.5\,pp,
-    $n=88$) overlap across the chain; read its per-step deltas as
-    directional.}
-  \label{fig:cum_gains}
-\end{figure}
 
 \paragraph{Backbone size does not break the bi-encoder ceiling.}
 Scaling E5-small (33M) to E5-base (110M) leaves TIME/EVENT Hits@1
@@ -560,7 +562,7 @@ cross-encoder; per event it is a one-way bet on acquirer-renaming
 --- 0.72 on M\&A but 0.10 on pure renames and 0.35 on legal-form
 changes, where the cross-encoder scores 0.90 and 0.85. The
 cross-encoder also wins pairwise AUROC on every split (0.83--0.87
-vs.\ 0.68--0.81) and Hits@1 on JURIS ($+$25\,pp), and the
+vs.\ 0.68--0.81) and Hits@1 on JURIS ($+$23\,pp), and the
 L-6$\times$L-12 ensemble beats the exploit on all three splits.
 Curated-pool Hits@1 alone can therefore be gamed; the
 cross-encoder's claim is being strong \emph{simultaneously} on the
@@ -607,7 +609,7 @@ claim about spinoffs.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.88\linewidth]{figures/fig3_per_event_type.pdf}
+  \includegraphics[width=0.78\linewidth]{figures/fig3_per_event_type.pdf}
   \caption{Per-event-type Hits@1 on the held-out-time test split:
     zero-shot E5-small vs.\ the L-6 cross-encoder vs.\ the
     L-6$\times$L-12 ensemble. Renames ($n=10$) are nearly solved by
@@ -618,15 +620,12 @@ claim about spinoffs.
 
 \begin{table}[t]
   \centering
-  \small
-  \caption{Per-anchor-event-type Hits@1 on the held-out-EVENT test split
-    (within the Hits@1-eligible subset, i.e., anchors whose gold successor
-    appears in the candidate pool),
-    for the zero-shot baseline (E5-small) and the L-6 cross-encoder. The
-    full test split is 94.5\% \texttt{ABSORPTION} (2{,}609 of 2{,}760);
-    \texttt{SPINOFF} at $n=4$ is
-    statistically uninformative. Lift sources are concentrated in the
-    absorption-like types.}
+  \footnotesize
+  \caption{Per-event-type Hits@1 on the held-out-EVENT test split
+    (Hits@1-eligible subset), zero-shot E5-small vs.\ L-6. The full
+    test split is 94.5\% \texttt{ABSORPTION} (2{,}609 of 2{,}760);
+    \texttt{SPINOFF} at $n=4$ is statistically uninformative. Lift
+    concentrates in the absorption-like types.}
   \label{tab:event_split_breakdown}
   \begin{tabular}{lrrrr}
     \toprule
@@ -677,9 +676,8 @@ at the candidate-pool level.
     The cross-encoder advantage is large and consistent when train and
     evaluation pools match (diagonal: $+20$ to $+40$\,pp); the
     advantage shrinks but stays substantial cross-pool
-    ($+13$ to $+39$\,pp). Numbers reproduce: original-paper Cross-encoder (L-6) predictions
-    and re-trained \texttt{trn-E5} cells agree within 2\,pp on
-    time/event splits.}
+    ($+13$ to $+39$\,pp). Re-trained \texttt{trn-E5} cells reproduce
+    the original L-6 predictions within 2\,pp on time/event.}
   \label{tab:robustness}
   \begin{tabular}{l rrr rrr}
     \toprule
@@ -745,9 +743,8 @@ Bi-encoder Recall@20 is 33.2 / 39.6 / 49.7\% on TIME / EVENT /
 JURIS. That is the hard ceiling for any reranker. When the bi-encoder
 does retrieve the true successor, the L-6 cross-encoder picks it
 \#1 with 46--58\% Hits@1 and the L-6$\times$L-12 ensemble reaches
-53--60\% --- both rerankers re-score the actual fielded candidates,
-and the ensemble gain over the L-6 cross-encoder is modest once the
-bi-encoder distractors look genuinely lifecycle-plausible.
+53--60\% --- the ensemble's edge over the L-6 is modest once
+distractors look genuinely lifecycle-plausible.
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--29\% for the L-6
 cross-encoder and 17--30\% for the ensemble. The drop from
@@ -779,8 +776,7 @@ better.
 \subsection{Additional diagnostics}
 \label{ssec:diagnostics}
 
-Four diagnostics, compressed to fit the page budget; full tables
-and figures are in the released code.
+Four diagnostics; full tables ship with the released code.
 \textbf{B-cubed cluster F1}~\cite{binette2024} on the test
 partition is 0.92 / 0.90 / 0.91 for the cross-encoder vs.\
 $\leq$0.47 for any bi-encoder (each of which collapses to one
@@ -811,9 +807,8 @@ future work.
 
 \subsection{Where each method is fooled}
 
-The negative-class breakdown (Table~\ref{tab:neg_class}) reports
-per-negative-class mean score: higher means the method is more often fooled
-by that class of negative. The fine-tuned bi-encoders roughly halve the
+Table~\ref{tab:neg_class} reports per-negative-class mean score
+(higher = more often fooled). The fine-tuned bi-encoders roughly halve the
 zero-shot E5 baseline's score on \texttt{parent\_subsidiary} and
 \texttt{same\_name\_diff\_country} negatives, but
 \texttt{same\_name\_same\_country} remains a wall at $\approx$0.90 mean score: the bi-encoder
@@ -889,9 +884,10 @@ $\geq$11 are sibling consolidations (e.g., 9 ``\texttt{EPIC <port>
 PTE.\ LTD.}'' Singapore ships into \texttt{BW EPIC KOSAN VESSELS
 ONE}; the model returns sibling \texttt{EPIC} vessels); a second
 cluster is Japanese-script name changes the ASCII tokenizer cannot
-bridge (Daiwa-Sumigin $\to$ Mitsui-Sumitomo DS). An LLM with
-multilingual pretraining and ownership-graph context would
-address both.
+bridge (Daiwa-Sumigin $\to$ Mitsui-Sumitomo DS). Multilingual
+pretraining plus ownership-graph context would address both ---
+though \S\ref{sec:experiments} shows zero-shot prompting alone
+is not the answer.
 
 \subsection{Why this matters in practice}
 
@@ -910,8 +906,6 @@ system handles it.
 
 \section{Limitations and Future Work}
 \label{sec:limitations}
-
-Six limitations; longer versions ship with the released code.
 
 \paragraph{The ``anti-correlation'' finding is a construction artifact.}
 Hard negatives in \textsc{Sylvester} are mined to be
@@ -940,8 +934,8 @@ target for future work.
 Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
 (TIME), $0.291 \pm 0.004$ (EVENT), $0.523 \pm 0.016$ (JURIS);
 TIME/EVENT are stable, JURIS varies $\pm$1.6\,pp consistent with
-its small test sample ($n = 88$). Cross-encoder multi-seed
-retraining (Table~\ref{tab:v7}) shows similar behavior. Separately, $205/93{,}695 = 0.22\%$ of hard negatives
+its small test sample ($n = 88$); cross-encoder multi-seed
+retraining behaves similarly. Separately, $205/93{,}695 = 0.22\%$ of hard negatives
 appear in GLEIF's \texttt{SuccessorEntity}; the cleaned variant
 \texttt{pairs\_clean.parquet} drops them with $\leq$0.2\,pp impact.
 

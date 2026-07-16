@@ -317,3 +317,85 @@ def fig7_selective_prediction(data, out_dir):
 
 if __name__ == "__main__":
     main()
+
+
+def fig8_llm_panel(data="data", out_dir=OUT_DIR):
+    """Grouped bars: zero-shot LLM panel E[Hits@1] per split under the
+    uniform single-pair protocol (fair tie-breaking), with the L-6
+    cross-encoder and L-6xL-12 ensemble as reference lines. Values are
+    computed live from prediction parquets via ranking.expected_metrics."""
+    import pyarrow.parquet as pq
+    from ranking import per_anchor_expected
+
+    MODELS = [
+        ("llm_haiku_full",    "Haiku 4.5",     "#a6cee3"),
+        ("llm_sonnet_full",   "Sonnet 4.6",    "#6baed6"),
+        ("llm_opus_full",     "Opus 4.7",      "#2171b5"),
+        ("llm_gemini_full",   "Gemini 3.1 Pro","#b2df8a"),
+        ("llm_deepseek_full", "DeepSeek V4",   "#fdbf6f"),
+        ("llm_gptoss_panel",  "gpt-oss-20b",   "#cccccc"),
+    ]
+    CE  = {"split_time": 0.607, "split_event": 0.569, "split_jurisdiction": 0.750}
+    ENS = {"split_time": 0.700, "split_event": 0.677, "split_jurisdiction": 0.784}
+    SPLITS = ["split_time", "split_event", "split_jurisdiction"]
+    SHORT = ["TIME", "EVENT", "JURIS"]
+
+    pairs = pq.read_table(os.path.join(data, "pairs.parquet"),
+        columns=["anchor_lei", "candidate_lei", "label",
+                  "split_time", "split_event", "split_jurisdiction"]).to_pandas()
+    pairs = pairs.drop_duplicates(["anchor_lei", "candidate_lei"])
+
+    rng = np.random.default_rng(42)
+    vals, los, his = {}, {}, {}
+    for stem, _label, _c in MODELS:
+        p = pq.read_table(os.path.join(data, "predictions", f"{stem}.parquet"),
+            columns=["anchor_lei", "candidate_lei", "score"]).to_pandas()
+        df = pairs.merge(p, on=["anchor_lei", "candidate_lei"], how="left")
+        for s in SPLITS:
+            test = df[(df[s] == "test")].copy()
+            bad = test.groupby("anchor_lei")["score"].transform(lambda x: x.isna().any())
+            test = test[~bad]
+            eh1 = np.array([hks[1] for _a, hks, _e in per_anchor_expected(test, ks=(1,))])
+            if len(eh1) == 0:
+                vals[(stem, s)] = los[(stem, s)] = his[(stem, s)] = np.nan
+                continue
+            boots = np.array([eh1[rng.integers(0, len(eh1), len(eh1))].mean()
+                               for _ in range(500)])
+            vals[(stem, s)] = eh1.mean()
+            los[(stem, s)] = np.percentile(boots, 2.5)
+            his[(stem, s)] = np.percentile(boots, 97.5)
+
+    fig, ax = plt.subplots(figsize=(3.5, 2.05))
+    n = len(MODELS)
+    width = 0.13
+    xg = np.arange(len(SPLITS))
+    for i, (stem, label, color) in enumerate(MODELS):
+        xs = xg + (i - (n - 1) / 2) * width
+        ys = [vals[(stem, s)] for s in SPLITS]
+        yerr = [[vals[(stem, s)] - los[(stem, s)] for s in SPLITS],
+                [his[(stem, s)] - vals[(stem, s)] for s in SPLITS]]
+        ax.bar(xs, ys, width * 0.92, yerr=yerr, error_kw=dict(lw=0.5),
+               color=color, edgecolor="black", linewidth=0.4, label=label)
+    for j, s in enumerate(SPLITS):
+        half = (n / 2) * width + 0.02
+        ax.hlines(CE[s], xg[j] - half, xg[j] + half, colors="black",
+                  linestyles="--", linewidth=1.1,
+                  label="Cross-encoder (L-6)" if j == 0 else None)
+        ax.hlines(ENS[s], xg[j] - half, xg[j] + half, colors="black",
+                  linestyles=":", linewidth=1.1,
+                  label="Ensemble (L-6$\\times$L-12)" if j == 0 else None)
+    ax.set_xticks(xg)
+    ax.set_xticklabels(SHORT, fontsize=7)
+    ax.set_ylabel("E[Hits@1]", fontsize=7)
+    ax.set_ylim(0, 1.02)
+    ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.tick_params(labelsize=7)
+    ax.legend(fontsize=5.2, ncol=2, frameon=False, loc="upper left",
+              columnspacing=0.8, handlelength=1.4, handletextpad=0.4)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    for ext in ("pdf", "png"):
+        fig.savefig(os.path.join(out_dir, f"fig8_llm_panel.{ext}"),
+                    dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print("wrote fig8_llm_panel.pdf/.png")
