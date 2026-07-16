@@ -21,21 +21,6 @@ DATA = sys.argv[1] if len(sys.argv) > 1 else "data"
 SPLITS = ("split_time", "split_event", "split_jurisdiction")
 
 
-def _ranks(df_test):
-    anchors, ranks = [], []
-    for anchor, sub in df_test.groupby("anchor_lei", sort=False):
-        if sub["label"].sum() == 0 or len(sub) < 2:
-            continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pos_idx = ranked.index[ranked["label"] == 1]
-        if len(pos_idx) == 0:
-            continue
-        anchors.append(anchor)
-        ranks.append(int(pos_idx[0]) + 1)
-    return np.asarray(anchors), np.asarray(ranks)
-
-
 def h1_mrr(df_test):
     from ranking import per_anchor_expected
     eh1, errs = [], []

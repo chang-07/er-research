@@ -41,15 +41,12 @@ def per_event_type_hits1(test_df_with_score, top_n_types=12, n_boots=200, seed=4
         for _, anc in sub.groupby("anchor_lei"):
             if anc["label"].sum() == 0 or len(anc) < 2:
                 continue
-            anc = anc.sample(frac=1.0, random_state=0)
-            r = anc.sort_values("score", ascending=False).reset_index(drop=True)
-            pos = r.index[r["label"] == 1]
-            if len(pos) == 0:
-                continue
-            rank = int(pos[0]) + 1
-            hits1.append(rank == 1)
-            hits3.append(rank <= 3)
-            rr.append(1.0 / rank)
+            from ranking import expected_metrics
+            hks, err = expected_metrics(anc["score"].values,
+                                         anc["label"].values, ks=(1, 3))
+            hits1.append(hks[1])
+            hits3.append(hks[3])
+            rr.append(err)
         if rr:
             arr = np.asarray(hits1, dtype=np.int8)
             n = len(arr)

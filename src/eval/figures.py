@@ -201,12 +201,10 @@ def fig6_cumulative_gains(data, out_dir):
         for _, sub in d.groupby("anchor_lei", sort=False):
             if sub["label"].sum() == 0 or len(sub) < 2:
                 continue
-            sub = sub.sample(frac=1.0, random_state=0)
-            ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-            pi = ranked.index[ranked["label"] == 1]
-            if len(pi) == 0:
-                continue
-            hits += 1 if int(pi[0]) == 0 else 0
+            from ranking import expected_metrics
+            hks, _ = expected_metrics(sub["score"].values,
+                                       sub["label"].values, ks=(1,))
+            hits += hks[1]
             n += 1
         return (hits / n) if n else 0.0
 
@@ -285,9 +283,10 @@ def fig7_selective_prediction(data, out_dir):
         for anc, grp in sub.groupby("anchor_lei", sort=False):
             if len(grp) < 2 or grp["label"].sum() == 0:
                 continue
-            g = grp.sample(frac=1.0, random_state=0)
-            r = g.sort_values("score", ascending=False).iloc[0]
-            rows.append((float(r["score"]), int(r["label"])))
+            from ranking import expected_metrics
+            hks, _ = expected_metrics(grp["score"].values,
+                                       grp["label"].values, ks=(1,))
+            rows.append((float(grp["score"].max()), hks[1]))
         if not rows:
             continue
         rows.sort(key=lambda x: -x[0])

@@ -23,12 +23,10 @@ def hits1(d):
     for _, sub in d.groupby("anchor_lei", sort=False):
         if sub["label"].sum() == 0 or len(sub) < 2:
             continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pi = ranked.index[ranked["label"] == 1]
-        if len(pi) == 0:
-            continue
-        hits += 1 if int(pi[0]) == 0 else 0
+        from ranking import expected_metrics
+        hks, _ = expected_metrics(sub["score"].values,
+                                   sub["label"].values, ks=(1,))
+        hits += hks[1]
         n += 1
     return (hits / n) if n else 0.0
 

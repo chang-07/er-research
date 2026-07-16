@@ -26,14 +26,11 @@ def hits1_mrr_ci(df, n_boots=500, seed=42):
     for anchor, sub in df.groupby("anchor_lei", sort=False):
         if sub["label"].sum() == 0 or len(sub) < 2:
             continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pi = ranked.index[ranked["label"] == 1]
-        if len(pi) == 0:
-            continue
-        first = int(pi[0]) + 1
-        hits.append(1 if first == 1 else 0)
-        ranks.append(1.0 / first)
+        from ranking import expected_metrics
+        hks, err = expected_metrics(sub["score"].values,
+                                     sub["label"].values, ks=(1,))
+        hits.append(hks[1])
+        ranks.append(err)
     if not hits:
         return (float("nan"),) * 6 + (0,)
     h = np.asarray(hits, dtype=float)
@@ -109,14 +106,11 @@ def main():
             for anc, sub in test_retrieved.groupby("anchor_lei", sort=False):
                 if sub["label"].sum() == 0 or len(sub) < 2:
                     continue
-                sub = sub.sample(frac=1.0, random_state=0)
-                ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-                pi = ranked.index[ranked["label"] == 1]
-                if len(pi) == 0:
-                    continue
-                first = int(pi[0]) + 1
-                cond_hits.append(1 if first == 1 else 0)
-                cond_ranks.append(1.0 / first)
+                from ranking import expected_metrics
+                hks, err = expected_metrics(sub["score"].values,
+                                             sub["label"].values, ks=(1,))
+                cond_hits.append(hks[1])
+                cond_ranks.append(err)
 
             # End-to-end: per anchor in the full test set
             # A hit requires truth-retrieved AND cross-encoder ranks it #1
@@ -131,12 +125,12 @@ def main():
                     e2e_hits.append(0)
                     e2e_ranks.append(0.0)
                     continue
-                sub_retrieved = sub_retrieved.sample(frac=1.0, random_state=0)
-                ranked = sub_retrieved.sort_values("score", ascending=False).reset_index(drop=True)
-                pi = ranked.index[ranked["label"] == 1]
-                first = int(pi[0]) + 1
-                e2e_hits.append(1 if first == 1 else 0)
-                e2e_ranks.append(1.0 / first)
+                from ranking import expected_metrics
+                hks, err = expected_metrics(sub_retrieved["score"].values,
+                                             sub_retrieved["label"].values,
+                                             ks=(1,))
+                e2e_hits.append(hks[1])
+                e2e_ranks.append(err)
 
             import numpy as np
             rng = np.random.default_rng(42)

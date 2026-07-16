@@ -17,15 +17,12 @@ def hits1_mrr(d):
     for _, sub in d.groupby("anchor_lei", sort=False):
         if sub["label"].sum() == 0 or len(sub) < 2:
             continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pi = ranked.index[ranked["label"] == 1]
-        if len(pi) == 0:
-            continue
-        rank = int(pi[0]) + 1
-        hits += 1 if rank == 1 else 0
+        from ranking import expected_metrics
+        hks, err = expected_metrics(sub["score"].values,
+                                     sub["label"].values, ks=(1,))
+        hits += hks[1]
         n += 1
-        rr.append(1.0 / rank)
+        rr.append(err)
     h = hits / n if n else 0.0
     m = float(np.mean(rr)) if rr else 0.0
     return h, m, n

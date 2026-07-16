@@ -52,23 +52,6 @@ def prf1(y_true, y_score, thr):
     f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
     return p, r, f1
 
-def _per_anchor_ranks(df_test):
-    """Return arrays parallel to anchors_with_pos: (anchor_lei, rank_of_first_pos).
-    """
-    anchors, ranks = [], []
-    for anchor, sub in df_test.groupby("anchor_lei", sort=False):
-        if sub["label"].sum() == 0 or len(sub) < 2:
-            continue
-        sub = sub.sample(frac=1.0, random_state=0)
-        ranked = sub.sort_values("score", ascending=False).reset_index(drop=True)
-        pos_idx = ranked.index[ranked["label"] == 1]
-        if len(pos_idx) == 0:
-            continue
-        anchors.append(anchor)
-        ranks.append(int(pos_idx[0]) + 1)
-    return np.asarray(anchors), np.asarray(ranks)
-
-
 def _per_anchor_expected_arrays(df_test):
     from ranking import per_anchor_expected
     anchors, eh1, eh3, errs = [], [], [], []
