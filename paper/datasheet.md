@@ -47,7 +47,7 @@ entities").
 | `hard_negatives.parquet` (v1 mined hard negatives) | 253,733 |
 | `hard_negatives_v2.parquet` (v2: E5-cosine; recommended for training) | 652,764 |
 | `hard_negatives_v3.parquet` (v3: TF-IDF char-3gram; for the paper's miner-robustness evaluation) | 652,680 |
-| **`pairs.parquet` (the headline evaluation pool — the paper's "E5-neg pool")** | **125,519** |
+| **`pairs.parquet` (the headline evaluation pool — the paper's benchmark pool; token-overlap-mined negatives)** | **125,519** |
 | `pairs_v3.parquet` (the paper's "TF-IDF pool", Sylvester-TF-IDF — alternative evaluation pool with TF-IDF negatives) | 217,957 |
 | &nbsp;&nbsp;&nbsp;&nbsp;of which positives (label=1) | 31,824 |
 | &nbsp;&nbsp;&nbsp;&nbsp;of which negatives (label=0) | 93,695 |

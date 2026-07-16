@@ -70,8 +70,8 @@ near-chance AUROC of most similarity baselines on the time and event
 splits is a construction choice, not a claim about name matching in
 ER generally. An \emph{inverted}-similarity baseline exploits it for
 64--70\,\% Hits@1 on the benchmark's own candidate pools --- and a
-supervised feature-based matcher, the production default, learns the
-exploit outright, posting the best on-pool scores we observe
+supervised feature-based matcher, the production default, learns it
+outright and posts the best on-pool scores we observe
 (0.73--0.84) --- yet both collapse on candidates from an unrelated
 miner and on candidates retrieved from the full universe, where,
 among the methods we test, only the cross-encoder stays strong. In a fielded
@@ -122,9 +122,9 @@ architecture correctly identifies the true lifecycle successor?}
 \begin{enumerate}
   \item \textbf{An open benchmark} (\S\ref{sec:benchmark}):
         125{,}519 labeled pairs over 3.3M GLEIF Level-1 entities,
-        hard negatives in four classes backed by 474K GLEIF Level-2
-        relationships, and three held-out regimes (time, event type,
-        jurisdiction). Construction choices and their scope of
+        hard negatives in four classes (the parent/subsidiary class
+        drawn from GLEIF Level-2 relationship records), and three
+        held-out regimes (time, event type, jurisdiction). Construction choices and their scope of
         generalizability are documented throughout
         (\S\ref{sec:benchmark}, \S\ref{sec:limitations}).
 
@@ -380,8 +380,8 @@ method's backbone without fine-tuning); and one \emph{supervised}
 classical matcher, \texttt{features\_gbm}: gradient-boosted trees
 over twelve string-similarity and field-agreement features in the
 Fellegi--Sunter lineage~\cite{fellegisunter1969}, trained on the
-same no-leakage rows as the neural models --- the configuration
-most production ER systems run. We also report six zero-shot
+same no-leakage rows as the neural models --- the production
+default. We also report six zero-shot
 LLM pairwise baselines under one protocol: one API call per pair,
 byte-identical prompts, a 0--10 integer rubric,
 \texttt{temperature=0} where exposed. Five API models spanning three
@@ -571,13 +571,14 @@ The supervised \texttt{features\_gbm} baseline is the exploit's
 learned apotheosis: given training labels, it discovers the
 inversion plus the miners' residual signatures, and posts the best
 on-pool numbers in this paper (0.772 / 0.734 / 0.835 Hits@1,
-0.93--0.96 AUROC) --- above the L-6$\times$L-12 ensemble on every
-split. Off-pool it collapses to near-chance: 0.28 / 0.27 / 0.36 on
+0.93--0.96 AUROC) --- above the L-6$\times$L-12 ensemble on
+TIME/EVENT ($p < 10^{-4}$ paired permutation; JURIS n.s.).
+Off-pool it collapses to near-chance: 0.28 / 0.27 / 0.36 on
 \textsc{Sylvester-TF-IDF} (AUROC 0.54--0.57) and 0.12--0.15
-conditional Hits@1 fielded (AUROC $\approx$ 0.5). The pattern is
-identical for the unsupervised exploit, at lower amplitude.
+conditional Hits@1 fielded (AUROC $\approx$ 0.5).
 
-The exploit survives none of the condition changes we test. On
+The unsupervised exploit shows the same pattern at lower amplitude,
+surviving none of the condition changes we test. On
 \textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
 0.21 Hits@1, AUROC $\approx$ 0.5) while the cross-encoders hold
 0.53--0.66 (Table~\ref{tab:robustness}); on the fielded pool it
@@ -689,6 +690,8 @@ miner-matched cell in the matrix is trn-TF-IDF on the TF-IDF pool.
     ``TF-IDF pool'' = \texttt{pairs\_v3.parquet} (TF-IDF char-3gram
     cosine, no neural representation). Row labels indicate which
     miner's hard negatives were used for cross-encoder training.
+    E5 rows are bootstrapped separately and differ from
+    Table~\ref{tab:main_results} by $\leq$0.002.
     E5-small zero-shot is included as a reference baseline on each pool.
     The cross-encoder advantage is large and consistent when train and
     evaluation pools match (diagonal: $+20$ to $+40$\,pp); the
@@ -720,10 +723,10 @@ miner-matched cell in the matrix is trn-TF-IDF on the TF-IDF pool.
 \paragraph{What the 2$\times$2 tells us.} First, the cross-encoder \emph{architecture}
 generalizes well across miners: the TF-IDF-trained cross-encoder evaluated on
 the benchmark pool reaches 0.588 / 0.533 / 0.750 Hits@1 --- within 1--2\,pp of
-the E5-trained model on TIME and EVENT (surpassing it by 4.5\,pp on the
-thin JURIS split, consistent with its wide CI), despite never having
-seen E5-mined candidates during training. The result is symmetric: the E5-trained model
-on the TF-IDF pool likewise stays well above any non-cross-encoder method.
+the E5-trained model on TIME/EVENT (4.5\,pp ahead on thin JURIS,
+inside its CI) despite never seeing that pool's miner. Symmetrically,
+the E5-trained model on the TF-IDF pool stays well above every
+non-cross-encoder method.
 
 Second, there is a real but bounded in-distribution effect. The E5-trained
 cross-encoder loses 2--13\,pp Hits@1 when moved to the TF-IDF evaluation pool
@@ -912,11 +915,9 @@ is not the answer.
 The benchmark targets a failure mode common across financial
 infrastructure. Stripe trains transaction and merchant embeddings at
 scale~\cite{stripe_ai}; Ramp's accounting agents flag duplicate
-vendors and invoices~\cite{ramp_agents2025}; Bloomberg's entity
-backbone underpins its NLP and financial modeling
-work~\cite{bloomberg_delphyne2025}. Each
-of these pipelines faces the lifecycle-ER gap: entity records that
-look completely different after a merger, rebrand, or absorption.
+vendors and invoices~\cite{ramp_agents2025}; entity backbones
+underpin market-data and compliance stacks generally. Each pipeline
+faces the lifecycle-ER gap after a merger, rebrand, or absorption.
 \textsc{Sylvester}
 gives practitioners a public benchmark to evaluate whether their
 system handles it.
@@ -930,9 +931,9 @@ Hard negatives in \textsc{Sylvester} are mined to be
 name-similar to the predecessor; positives are by definition
 name-different. The near-chance AUROC of most similarity baselines
 (\S\ref{sec:experiments}) follows directly from that mining
-design and does not generalize to ER outside this benchmark. The
-finding motivates joint encoding here; it is not a universal claim
-about name similarity in ER.
+design and does not generalize to ER outside this benchmark: it
+motivates joint encoding here, not a universal claim about name
+similarity.
 
 \paragraph{In-distribution headline overstates deployment.}
 The headline cross-encoder Hits@1 (57--61\,\% on time/event;
@@ -944,10 +945,9 @@ draws candidates from the full 3.3M-entity GLEIF universe
 bi-encoder Recall@20 is 33--50\,\%, so the reranker often never sees
 the true successor. The miner-robustness experiment shows the
 cross-encoder gain itself is partly in-distribution but not purely a
-within-miner artifact ($+13$ to $+39$\,pp cross-pool). A stronger first-stage
-retriever --- a learned hybrid sparse-dense index, or a coarsely
-pre-filtered cross-encoder shortlist --- is the highest-leverage
-target for future work.
+within-miner artifact ($+13$ to $+39$\,pp cross-pool). A stronger first-stage retriever (hybrid sparse--dense, or a
+pre-filtered cross-encoder shortlist) is the highest-leverage
+future work.
 
 \paragraph{Seed variance and a sliver of mislabeled hard negatives.}
 Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
@@ -967,9 +967,8 @@ the held-out-jurisdiction test has only 88 anchors ($\pm$8.5\,pp
 Hits@1 CI). The cross-encoder gain clears the CI band on all three
 splits, but per-split absolute numbers should be read with those
 sample sizes in mind. A 277-pair second-classifier check
-(\S\ref{ssec:diagnostics}) bounds detectable label noise at $<$2\% on the
-confident-positive subset; expert human review would give
-a stronger bound. Splits are pair-level, not entity-disjoint
+(\S\ref{ssec:diagnostics}) bounds detectable label noise at $<$2\%
+on the confident subset; human review would strengthen the bound. Splits are pair-level, not entity-disjoint
 (32\,\%\,/\,21\,\% of time-split test candidates\,/\,gold
 successors appear in training pairs; JURIS $<$1\,\%), though L-6
 Hits@1 shows no seen-entity advantage (unseen 0.62 vs.\ seen 0.57
@@ -996,9 +995,9 @@ on out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
 specialized to lifecycle ER, not generic. The parent/subsidiary
 negative class shows a regression (mean score 0.45 $\to$ 0.70 from
 bi-encoder to L-6 cross-encoder, worsening to 0.78 in the ensemble), but with
-only 221 negatives the effect-size estimate is not statistically
-meaningful. Explicit multi-class modeling of related-but-distinct
-entities is a clear direction for future work.
+only 221 negatives the effect is statistically weak; explicit
+multi-class modeling of related-but-distinct entities is clear
+future work.
 
 \section{Conclusion}
 
