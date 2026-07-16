@@ -251,6 +251,8 @@ python3 src/benchmark/wikidata_marquee.py      --data data/                # ~30
 ```bash
 python3 src/baselines/cheap.py   --data data/   # exact_name, token_set, tfidf_char
 python3 src/baselines/encoder.py --data data/   # E5-small-v2 zero-shot
+python3 src/baselines/features_gbm.py --data data/  # supervised GBM over string+state features
+                                                    # (trains no-leakage; scores all 3 pools)
 python3 src/eval/evaluate.py     --data data/   # AUROC, AUPRC, Hits@K, MRR
 ```
 LLM pairwise drives paid APIs and is **not** run autonomously. It needs a key

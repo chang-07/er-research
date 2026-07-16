@@ -69,10 +69,12 @@ name-similar hard negatives against name-different positives; the
 near-chance AUROC of most similarity baselines on the time and event
 splits is a construction choice, not a claim about name matching in
 ER generally. An \emph{inverted}-similarity baseline exploits it for
-64--70\,\% Hits@1 on the benchmark's own candidate pools, yet
-collapses on candidates from an unrelated miner and on candidates
-retrieved from the full universe --- where, among the methods we
-test, only the cross-encoder stays strong. In a fielded
+64--70\,\% Hits@1 on the benchmark's own candidate pools --- and a
+supervised feature-based matcher, the production default, learns the
+exploit outright, posting the best on-pool scores we observe
+(0.73--0.84) --- yet both collapse on candidates from an unrelated
+miner and on candidates retrieved from the full universe, where,
+among the methods we test, only the cross-encoder stays strong. In a fielded
 retrieve-then-rerank simulation over the full 3.3M-entity universe,
 end-to-end Hits@1 falls to 15--29\,\% because bi-encoder Recall@20
 caps at 33--50\,\%; the bottleneck is the first stage, not the
@@ -132,7 +134,8 @@ architecture correctly identifies the true lifecycle successor?}
         while positives are name-different by construction---not a
         claim about ER generally. The construction cuts both ways:
         \emph{inverted} name similarity reaches 0.64--0.70 Hits@1 on
-        those splits, yet collapses on the TF-IDF pool, the fielded
+        those splits, a supervised feature matcher 0.73--0.84, yet
+        both collapse on the TF-IDF pool, the fielded
         pool, and renames (\S\ref{ssec:anti}). A 22M-parameter
         cross-encoder is the only method strong across all of these
         conditions (0.83--0.87 AUROC; 24--35\,pp Hits@1 over the best
@@ -373,7 +376,12 @@ We compare against four similarity baselines:
 \texttt{token\_set} (Jaccard over name tokens),
 \texttt{tfidf\_char} (char-3gram TF-IDF cosine), and
 \texttt{sentence\_encoder} (zero-shot E5-small-v2 cosine --- the
-method's backbone without fine-tuning). We also report six zero-shot
+method's backbone without fine-tuning); and one \emph{supervised}
+classical matcher, \texttt{features\_gbm}: gradient-boosted trees
+over twelve string-similarity and field-agreement features in the
+Fellegi--Sunter lineage~\cite{fellegisunter1969}, trained on the
+same no-leakage rows as the neural models --- the configuration
+most production ER systems run. We also report six zero-shot
 LLM pairwise baselines under one protocol: one API call per pair,
 byte-identical prompts, a 0--10 integer rubric,
 \texttt{temperature=0} where exposed. Five API models spanning three
@@ -449,8 +457,10 @@ L-6$\times$L-12 ensemble.
     scores 0.18--0.22 Hits@1 (pools average 7.4--8.3 candidates).
     The best fine-tuned bi-encoder lifts Hits@1
     6--8\,pp over zero-shot E5-small; the cross-encoder adds a
-    further 24--35\,pp and is the only method above 0.8 AUROC on
-    both time and event.
+    further 24--35\,pp. $^{\S}$Supervised GBM over string+state
+    features: the strongest scores on this pool --- and it collapses
+    to near-chance on every other pool (\S\ref{ssec:anti}), the
+    benchmark's clearest gaming exhibit.
     \texttt{anti-token\_set} ranks by \emph{negated} similarity ---
     strong on this constructed pool, collapsing off-pool
     (\S\ref{ssec:anti}). Protocol and metric definitions:
@@ -473,6 +483,7 @@ L-6$\times$L-12 ensemble.
     \texttt{tfidf\_char}            & 0.277 & 0.180 & 0.360 & 0.349 & 0.213 & 0.386 & 0.568 & 0.420 & 0.583 \\
     \texttt{sentence\_encoder}      & 0.315 & 0.204 & 0.385 & 0.386 & 0.232 & 0.408 & 0.648 & 0.432 & 0.587 \\
     \texttt{anti-token\_set} ($1{-}$Jaccard) & 0.807 & 0.700 & 0.761 & 0.734 & 0.638 & 0.715 & 0.677 & 0.516 & 0.618 \\
+    \texttt{features\_gbm} (supervised)$^{\S}$ & 0.935 & 0.772 & 0.840 & 0.926 & 0.734 & 0.816 & 0.960 & 0.835 & 0.897 \\
     \midrule
     \multicolumn{10}{l}{\emph{LLM pairwise, zero-shot --- uniform single-pair protocol, full test coverage}} \\
     \texttt{Claude Haiku 4.5}        & --- & 0.290 & 0.476 & --- & 0.335 & 0.517 & --- & 0.618 & 0.738 \\
@@ -555,6 +566,16 @@ Hits@1, \emph{above} the single L-6 cross-encoder on time and event
 --- because picking the least name-similar candidate exploits the
 construction.
 
+The supervised \texttt{features\_gbm} baseline is the exploit's
+learned apotheosis: given training labels, it discovers the
+inversion plus the miners' residual signatures, and posts the best
+on-pool numbers in this paper (0.772 / 0.734 / 0.835 Hits@1,
+0.93--0.96 AUROC) --- above the L-6$\times$L-12 ensemble on every
+split. Off-pool it collapses to near-chance: 0.28 / 0.27 / 0.36 on
+\textsc{Sylvester-TF-IDF} (AUROC 0.54--0.57) and 0.12--0.15
+conditional Hits@1 fielded (AUROC $\approx$ 0.5). The pattern is
+identical for the unsupervised exploit, at lower amplitude.
+
 The exploit survives none of the condition changes we test. On
 \textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
 0.21 Hits@1, AUROC $\approx$ 0.5) while the cross-encoders hold
@@ -563,8 +584,9 @@ drops to 9--18\,\% conditional Hits@1 vs.\ 46--58\,\% for the
 cross-encoder; per event it is a one-way bet on acquirer-renaming
 --- 0.72 on M\&A but 0.10 on pure renames and 0.35 on legal-form
 changes, where the cross-encoder scores 0.90 and 0.85. The
-cross-encoder also wins pairwise AUROC on every split (0.83--0.87
-vs.\ 0.68--0.81) and Hits@1 on JURIS ($+$23\,pp), and the
+cross-encoder also wins pairwise AUROC against the unsupervised
+exploit on every split (0.83--0.87 vs.\ 0.68--0.81) and Hits@1 on
+JURIS ($+$23\,pp), and the
 L-6$\times$L-12 ensemble matches the exploit on TIME (0.700) and
 beats it on EVENT and JURIS.
 Curated-pool Hits@1 alone can therefore be gamed; the
@@ -986,8 +1008,9 @@ name-similar to each predecessor and true successors are by
 construction name-different, so similarity-based baselines stay
 at or below 0.55 AUROC on the time and event splits --- a property
 of this benchmark's construction, not of name similarity in ER
-generally (inverted similarity scores 0.64--0.70 Hits@1 on-pool,
-collapsing off-pool; \S\ref{ssec:anti}).
+generally (inverted similarity scores 0.64--0.70 Hits@1 on-pool and
+a supervised feature matcher 0.73--0.84, both collapsing off-pool;
+\S\ref{ssec:anti}).
 A 22M-parameter MiniLM cross-encoder reaches 0.83--0.87
 AUROC across all three splits and 57--61\,\% Hits@1 on the time and event
 splits (75\,\% on held-out jurisdiction, $n=88$, directional),
