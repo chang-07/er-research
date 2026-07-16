@@ -21,16 +21,18 @@ No proprietary sources required; the full pipeline runs end-to-end on a laptop.
    this benchmark, name similarity is **evidence against** a match — every
    similarity baseline lands **below 0.5 AUROC** on the time/event splits.
 2. **Joint encoding is what closes the gap.** A 22M-param MiniLM **L-6 cross-encoder**
-   reaches **0.605 / 0.564 / 0.750 Hits@1** and **0.836 / 0.825 / 0.868 AUROC**
-   across the TIME / EVENT / JURIS splits — **+34 / +27 / +24 pp** over the best
-   bi-encoder. An L-6×L-12 ensemble pushes Hits@1 to **0.700 / 0.677 / 0.784**.
+   reaches **0.607 / 0.569 / 0.750 Hits@1** and **0.836 / 0.825 / 0.868 AUROC**
+   across the TIME / EVENT / JURIS splits (expected Hits@1 over random
+   tie-breaking) — **+35 / +27 / +24 pp** over the best bi-encoder, and above all
+   six zero-shot LLMs tested (4 orgs). An L-6×L-12 ensemble reaches **0.700 / 0.677 / 0.784**.
 3. **The benchmark "cuts both ways."** Because the construction makes
-   *dissimilarity* predictive, a naive **anti-similarity** baseline (rank by
-   *negated* name similarity) scores **0.677 / 0.607 / 0.500 Hits@1** on the
-   curated pool — *above* the L-6 on TIME/EVENT. Curated Hits@1 alone is gameable.
-4. **The honest numbers come from off-pool tests.** The exploit **collapses** under
-   any change of conditions (≈0.19 on a different-miner pool, ≈0.19 fielded, 0.10
-   on pure renames); the cross-encoder stays strong **simultaneously** on every
+   *dissimilarity* predictive, anti-similarity (negated Jaccard) scores
+   **0.700 / 0.638 / 0.516** on the curated pool, and a **supervised 12-feature
+   GBM tops everything on-pool** (0.772 / 0.734 / 0.835 — above the ensemble).
+   Curated Hits@1 alone is gameable, even by the production-default matcher.
+4. **The honest numbers come from off-pool tests.** Both exploits **collapse**
+   off-pool (GBM: 0.27–0.36 on a different-miner pool, 0.12–0.15 fielded);
+   the cross-encoder stays strong **simultaneously** on every
    pool and every event type. On a **fielded retrieve-then-rerank** pipeline over
    the full 3.3M-entity universe, end-to-end Hits@1 is **15–30%** (recall-bottlenecked) —
    that is the deployment number, not the curated one.
@@ -42,8 +44,8 @@ No proprietary sources required; the full pipeline runs end-to-end on a laptop.
 > terminology. The *v2 cross-encoder* is the paper's headline **L-6 cross-encoder
 > (22M)**; *v8aL12* is the **L-12 (33M)** variant; *v10* is the **L-6 × L-12
 > ensemble**. *v1 / v2 hard negatives* are the **token-overlap** and **E5-cosine**
-> miners; `pairs.parquet` is the paper's **E5-neg pool** and `pairs_v3.parquet`
-> its **TF-IDF pool** (Sylvester-TF-IDF). Artifact, script, and model-directory
+> miners; `pairs.parquet` is the paper's **benchmark pool** (token-overlap-mined
+> negatives) and `pairs_v3.parquet` its **TF-IDF pool** (Sylvester-TF-IDF). Artifact, script, and model-directory
 > names keep the internal labels so the reproduction commands stay valid.
 
 ---
