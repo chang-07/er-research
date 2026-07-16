@@ -88,9 +88,9 @@ and weights on one MacBook in $\sim$2 hours.
 \section{Introduction}
 
 Twitter Inc.\ became X Corp. Facebook became Meta. Sprint was absorbed into
-T-Mobile. Every fintech engineer, quant researcher, and compliance
-analyst has a story of a pipeline silently breaking on one of these
-transitions. The records
+T-Mobile. Pipelines silently breaking on such transitions is a
+familiar failure mode across fintech engineering, quant research,
+and compliance. The records
 look completely different on the surface --- different legal names, different
 tickers, sometimes different jurisdictions and legal forms --- yet they
 describe the same continuing economic entity.
@@ -110,9 +110,8 @@ them?}
 A natural concern: the benchmark is engineered against name similarity
 by construction --- negatives are mined name-similar while lifecycle
 successors are, by definition, name-different. This is deliberate,
-documented (\S\ref{ssec:splits}, \S\ref{ssec:anti}), and
-operationalized: we report the inverted-similarity exploit as its own
-baseline. The question the benchmark asks is the discriminative
+documented (\S\ref{ssec:splits}, \S\ref{ssec:anti}), and measured:
+we report the inverted-similarity exploit as its own baseline. The question the benchmark asks is the discriminative
 sub-problem a two-stage pipeline faces after a name-aware retriever
 narrows the field: \emph{given a name-similar candidate pool, what
 architecture correctly identifies the true lifecycle successor?}
@@ -160,7 +159,7 @@ use the single fine-tuned L-6 cross-encoder.
 \paragraph{Entity resolution and record linkage.} Classical
 ER~\cite{fellegisunter1969} matches records via similarity over
 structured fields. Modern PLM cross-encoders on serialized records
-(GraLMatch~\cite{gralmatch2025}) are now standard, and the
+(Ditto~\cite{ditto2021}, GraLMatch~\cite{gralmatch2025}) are now standard, and the
 OpenSanctions Pairs corpus~\cite{opensanctions2026} benchmarks LLM
 matching at 755K pairs. All adopt a \emph{snapshot} framing, not
 lifecycle-spanning matches.
@@ -226,7 +225,8 @@ delta, jurisdiction, legal form) yields: \texttt{strong\_real}
 \texttt{likely\_real\_name\_changed} 3{,}330 (9.9\%);
 \texttt{likely\_real\_event\_only} 1{,}704 (5.1\%); \texttt{ambiguous}
 1{,}355 (4.0\%); \textbf{\texttt{likely\_administrative}} 1{,}828
-(5.4\%, filtered out). We retain the first four classes (94.6\%),
+(5.4\%, filtered out). We retain the first four classes (94.6\%;
+\texttt{ambiguous} stays because every link is still LOU-curated),
 yielding 31{,}817 plausibly-real predecessors (31{,}824 positive
 pairs; some predecessors have multiple successors).
 
@@ -555,7 +555,7 @@ Hits@1, \emph{above} the single L-6 cross-encoder on time and event
 --- because picking the least name-similar candidate exploits the
 construction.
 
-The exploit does not survive any change of conditions. On
+The exploit survives none of the condition changes we test. On
 \textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
 0.21 Hits@1, AUROC $\approx$ 0.5) while the cross-encoders hold
 0.53--0.66 (Table~\ref{tab:robustness}); on the fielded pool it
@@ -574,7 +574,7 @@ event types. The mechanism is joint attention: asking whether the
 \emph{differences} between two records look like a lifecycle-event
 pattern, not how similar two strings are.
 
-\subsection{Where the lift is real: per-event-type breakdown}
+\subsection{Per-event-type breakdown}
 \label{ssec:per_event}
 
 Aggregate Hits@1 hides large per-event-type variation. The
@@ -584,9 +584,10 @@ than the target and string-similarity cannot bridge the gap. On
 pure renames it does essentially nothing: those are already at
 0.90 Hits@1 zero-shot.
 
-\paragraph{On the held-out-time split (Figure~\ref{fig:per_event}),
-the cross-encoder's gain is concentrated in the operationally hard
-events.} Pure renames (\texttt{CHANGE\_LEGAL\_NAME}, $n=10$) are
+\paragraph{On the held-out-time split, the cross-encoder's gain is
+concentrated in the operationally hard events --- the ensemble's
+further gains land on M\&A ($+9$\,pp) and absorption ($+12$\,pp).}
+Pure renames (\texttt{CHANGE\_LEGAL\_NAME}, $n=10$) are
 essentially solved by every method including zero-shot E5-small
 (0.90 Hits@1, no lift). The headline gains come from
 \texttt{MERGERS\_AND\_ACQUISITIONS} ($n=1{,}506$: 0.18 zero-shot
@@ -609,17 +610,6 @@ $\to$ 0.40); the \texttt{SPINOFF} cell is statistically meaningless at
 $n=4$. The aggregate ``+34 pp Hits@1 over zero-shot E5 on the event split'' number is
 therefore primarily a transfer claim about absorption, not a strong
 claim about spinoffs.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.78\linewidth]{figures/fig3_per_event_type.pdf}
-  \caption{Per-event-type Hits@1 on the held-out-time test split:
-    zero-shot E5-small vs.\ the L-6 cross-encoder vs.\ the
-    L-6$\times$L-12 ensemble. Renames ($n=10$) are nearly solved by
-    every method; the ensemble's gains over the L-6 concentrate on
-    M\&A ($+9$\,pp) and absorption ($+12$\,pp).}
-  \label{fig:per_event}
-\end{figure}
 
 \begin{table}[t]
   \centering
@@ -795,7 +785,8 @@ uncalibrated scores. A selective-prediction~\cite{geifman2017} sweep on the ense
 Hits@1 $\geq 0.94$ at 20\% coverage and 0.87--0.97 at 50\% across
 the three splits; users who need high precision can just threshold
 on the score (curve in repo).
-\textbf{Cross-domain transfer.} Zero-shot Magellan Walmart-Amazon:
+\textbf{Cross-domain transfer.} Zero-shot Magellan
+Walmart-Amazon~\cite{magellan2016}:
 the cross-encoder \emph{loses} to its own zero-shot base encoder
 by 5.9\,pp AUROC. The fine-tuned representation is specialized to
 lifecycle-spanning legal-entity matching, not generic ER.
@@ -939,12 +930,13 @@ target for future work.
 Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
 (TIME), $0.291 \pm 0.004$ (EVENT), $0.523 \pm 0.016$ (JURIS);
 TIME/EVENT are stable, JURIS varies $\pm$1.6\,pp consistent with
-its small test sample ($n = 88$); cross-encoder multi-seed
-retraining behaves similarly. Separately, $205/93{,}695 = 0.22\%$ of hard negatives
+its small test sample ($n = 88$); the enriched cross-encoder over
+the same seeds varies $\pm 0.5 / \pm 0.3 / \pm 1.6$\,pp.
+Separately, $205/93{,}695 = 0.22\%$ of hard negatives
 appear in GLEIF's \texttt{SuccessorEntity}; the cleaned variant
 \texttt{pairs\_clean.parquet} drops them with $\leq$0.2\,pp impact.
 
-\paragraph{Reporting / survivorship bias + thin slices.} GLEIF
+\paragraph{Survivorship bias and thin slices.} GLEIF
 \texttt{SuccessorEntity} is voluntarily populated, biasing positives
 toward well-counseled regulated entities. The held-out-event test set
 is 94.5\% absorption (the label oversells event-type generality), and
