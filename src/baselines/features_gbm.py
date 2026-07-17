@@ -94,32 +94,41 @@ def featurize(df, ent_map):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data")
+    ap.add_argument("--train-pairs", default="pairs.parquet",
+                    help="pool whose no-leakage rows the GBM trains on; "
+                         "pairs_v3.parquet reproduces the trn-TF-IDF "
+                         "variant reported in the paper (Sec 5.4)")
+    ap.add_argument("--out-suffix", default="",
+                    help="appended to output stems, e.g. _trnv3")
     args = ap.parse_args()
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
     from llm_pairwise import load_entity_map
 
+    sfx = args.out_suffix
     pools = {
-        "features_gbm": "pairs.parquet",
-        "features_gbm_v3": "pairs_v3.parquet",
-        "features_gbm_fielded": "pairs_fielded.parquet",
+        f"features_gbm{sfx}": "pairs.parquet",
+        f"features_gbm{sfx}_v3": "pairs_v3.parquet",
+        f"features_gbm{sfx}_fielded": "pairs_fielded.parquet",
     }
+    cols = ["anchor_lei", "candidate_lei", "label",
+            "split_time", "split_event", "split_jurisdiction"]
     frames = {}
     leis = set()
     for out_name, fname in pools.items():
         p = os.path.join(args.data, fname)
-        cols = ["anchor_lei", "candidate_lei", "label",
-                "split_time", "split_event", "split_jurisdiction"]
         frames[out_name] = pq.read_table(p, columns=cols).to_pandas()
         leis |= set(frames[out_name]["anchor_lei"])
         leis |= set(frames[out_name]["candidate_lei"])
         print(f"loaded {fname}: {len(frames[out_name]):,} rows", file=sys.stderr)
 
+    bench = pq.read_table(os.path.join(args.data, args.train_pairs),
+                          columns=cols).to_pandas()
+    leis |= set(bench["anchor_lei"]) | set(bench["candidate_lei"])
     ent_map = load_entity_map(args.data, leis)
     print(f"entity map: {len(ent_map):,}", file=sys.stderr)
 
-    # ---- train on the strict no-leakage intersection ----------------------
-    bench = frames["features_gbm"]
+    # ---- train on the no-leakage rows of --train-pairs --------------------
     # No-leakage = not TEST in any regime ("excl" rows never reach a test
     # set) — same criterion as the neural models' training positives.
     train_mask = ((bench["split_time"] != "test")

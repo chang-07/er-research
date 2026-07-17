@@ -76,7 +76,7 @@ outright and posts the best on-pool scores we observe
 miner and on candidates retrieved from the full universe, where,
 among the methods we test, only the cross-encoder stays strong. In a fielded
 retrieve-then-rerank simulation over the full 3.3M-entity universe,
-end-to-end Hits@1 falls to 15--29\,\% because bi-encoder Recall@20
+end-to-end Hits@1 falls to 15--28\,\% because bi-encoder Recall@20
 caps at 33--50\,\%; the bottleneck is the first stage, not the
 reranker. Results reproduce end-to-end from code, released splits,
 and weights on one MacBook in $\sim$2 hours.
@@ -146,9 +146,9 @@ architecture correctly identifies the true lifecycle successor?}
 
   \item \textbf{The deployment bottleneck is retrieval, not reranking}
         (\S\ref{ssec:robustness}): in a fielded simulation over
-        3.3M entities, end-to-end Hits@1 falls to 15--29\,\%
+        3.3M entities, end-to-end Hits@1 falls to 15--28\,\%
         because bi-encoder Recall@20 caps at 33--50\,\%. The
-        cross-encoder reranks effectively (46--58\,\% conditional
+        cross-encoder reranks effectively (46--57\,\% conditional
         Hits@1); the system breaks at the first stage, not the second.
 \end{enumerate}
 
@@ -587,9 +587,9 @@ surviving none of the condition changes we test. On
 \textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
 0.21 Hits@1, AUROC $\approx$ 0.5) while the cross-encoders hold
 0.53--0.66 (Table~\ref{tab:robustness}); on the fielded pool it
-drops to 9--18\,\% conditional Hits@1 vs.\ 46--58\,\% for the
-cross-encoder; per event it is a one-way bet on acquirer-renaming
---- 0.72 on M\&A but 0.10 on pure renames and 0.35 on legal-form
+drops to 9--18\,\% conditional Hits@1, a fraction of the
+cross-encoder's (\S\ref{ssec:robustness}); per event it is a one-way bet on acquirer-renaming
+--- 0.74 on M\&A but 0.11 on pure renames and 0.35 on legal-form
 changes, where the cross-encoder scores 0.90 and 0.85. The
 cross-encoder also wins pairwise AUROC against the unsupervised
 exploit on every split (0.83--0.87 vs.\ 0.68--0.81) and Hits@1 on
@@ -621,7 +621,7 @@ essentially solved by every method including zero-shot E5-small
 (0.90 Hits@1, no lift). The headline gains come from
 \texttt{MERGERS\_AND\_ACQUISITIONS} ($n=1{,}506$: 0.18 zero-shot
 $\to$ 0.62 L-6 $\to$ 0.71 ensemble) and \texttt{ABSORPTION} ($n=461$:
-0.23 $\to$ 0.53 $\to$ 0.65), where the post-event name comes from
+0.24 $\to$ 0.54 $\to$ 0.65), where the post-event name comes from
 the acquirer. The ensemble also more than doubles zero-shot on the
 small but operationally critical \texttt{BREAKUP} subset ($n=7$:
 0.14 $\to$ 0.71).
@@ -633,8 +633,8 @@ Hits@1-eligible subset, \texttt{DEMERGER}, \texttt{BREAKUP}, and
 \texttt{SPINOFF} contribute $n=42$, $n=20$, and $n=4$ respectively.
 Table~\ref{tab:event_split_breakdown} makes each held-out type's
 contribution visible. The cross-encoder lift is
-consistent across the absorption-like types (\texttt{ABSORPTION}: 0.22
-$\to$ 0.57, \texttt{DEMERGER}: 0.29 $\to$ 0.55, \texttt{BREAKUP}: 0.15
+consistent across the absorption-like types (\texttt{ABSORPTION}: 0.23
+$\to$ 0.57, \texttt{DEMERGER}: 0.33 $\to$ 0.60, \texttt{BREAKUP}: 0.15
 $\to$ 0.40); the \texttt{SPINOFF} cell is statistically meaningless at
 $n=4$. The aggregate ``+34 pp Hits@1 over zero-shot E5 on the event split'' number is
 therefore primarily a transfer claim about absorption, not a strong
@@ -653,8 +653,8 @@ claim about spinoffs.
     \toprule
     Event type & $n$ anchors & zero-shot E5 & Cross-enc (L-6) & $\Delta$ \\
     \midrule
-    \texttt{ABSORPTION} & 1{,}546 & 0.223 & \textbf{0.568} & $+34.5$ pp \\
-    \texttt{DEMERGER}   &    42   & 0.286 & \textbf{0.548} & $+26.2$ pp \\
+    \texttt{ABSORPTION} & 1{,}546 & 0.230 & \textbf{0.571} & $+34.1$ pp \\
+    \texttt{DEMERGER}   &    42   & 0.333 & \textbf{0.595} & $+26.2$ pp \\
     \texttt{BREAKUP}    &    20   & 0.150 & \textbf{0.400} & $+25.0$ pp \\
     \texttt{SPINOFF}    &     4   & 0.500 & 0.250 & $-25.0$ pp$^\dagger$ \\
     \multicolumn{5}{l}{\scriptsize $^\dagger$ $n=4$, statistically uninformative.} \\
@@ -765,12 +765,12 @@ not the filter.
 Bi-encoder Recall@20 is 33.2 / 39.6 / 49.7\% on TIME / EVENT /
 JURIS. That is the hard ceiling for any reranker. When the bi-encoder
 does retrieve the true successor, the L-6 cross-encoder picks it
-\#1 with 46--58\% Hits@1 and the L-6$\times$L-12 ensemble reaches
+\#1 with 46--57\% Hits@1 and the L-6$\times$L-12 ensemble reaches
 53--60\% --- the ensemble's edge over the L-6 is modest once
 distractors look genuinely lifecycle-plausible.
 End-to-end deployment Hits@1 (recall $\times$ conditional,
-un-retrieved truths counted as misses) is 15--29\% for the L-6
-cross-encoder and 17--30\% for the ensemble. The drop from
+un-retrieved truths counted as misses) is 15--28\% for the L-6
+cross-encoder and 18--30\% for the ensemble. The drop from
 57--61\% in-distribution on time/event (75\% on JURIS, $n=88$)
 to 15--30\% deployment confirms rather than contradicts
 \S\ref{ssec:bi}: the bi-encoder's fixed-embedding limit, which
@@ -939,8 +939,8 @@ The headline cross-encoder Hits@1 (57--61\,\% on time/event;
 75\,\% on JURIS, $n=88$, directional) is on the released
 token-overlap-mined candidate pool; on a fielded retrieve-then-rerank pipeline that
 draws candidates from the full 3.3M-entity GLEIF universe
-(\S\ref{ssec:robustness}), end-to-end Hits@1 falls to 15--29\,\%
-(L-6 cross-encoder) / 17--30\,\% (ensemble). The cause is upstream:
+(\S\ref{ssec:robustness}), end-to-end Hits@1 falls to 15--28\,\%
+(L-6 cross-encoder) / 18--30\,\% (ensemble). The cause is upstream:
 bi-encoder Recall@20 is 33--50\,\%, so the reranker often never sees
 the true successor. The miner-robustness experiment shows the
 cross-encoder gain is partly pool-specific but survives miner shift
