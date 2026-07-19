@@ -149,15 +149,34 @@ architecture correctly identifies the true lifecycle successor?}
       AKTIENGESELLSCHAFT} \hfill .00 \;
       \textbf{true successor} \ding{51}};
   \draw[-stealth, black!60] (a.south) -- (c1.north);
+  \node[below=5pt of c4, text width=222pt, align=left,
+        inner sep=0] (bars) {%
+    \scriptsize\textbf{Who ranks the true successor \#1?}
+    (Hits@1, held-out time; Table~\ref{tab:main_results})\\[2pt]
+    \tiny
+    \begin{tabular}{@{}r@{\ \ }l@{\ }r@{}}
+    zero-shot E5-small &
+      \textcolor{black!45}{\rule[0.2pt]{27.4pt}{5pt}} & .20\\
+    best zero-shot LLM (Opus 4.7) &
+      \textcolor{black!45}{\rule[0.2pt]{47.3pt}{5pt}} & .35\\
+    feature GBM (production default) &
+      \textcolor{black!45}{\rule[0.2pt]{104.2pt}{5pt}} & .77$^{\dag}$\\
+    cross-encoder L-6 (this paper) &
+      \textcolor{teal!70!black}{\rule[0.2pt]{81.9pt}{5pt}} & .61\\
+    \end{tabular}};
   \end{tikzpicture}
-  \caption{The task, on a real anchor from the held-out-time test
-    set (4 of its 7 candidates shown; bars = token Jaccard after
-    suffix normalization). GLEIF records a completed lifecycle
-    event on the predecessor; methods must rank its true successor
-    above deliberately name-similar hard negatives. Name similarity
-    ranks a coincidental collision first and the true successor ---
-    which shares no name tokens --- last, as does zero-shot E5.
-    \S\ref{ssec:err} analyzes such no-shared-token cases.}
+  \caption{The task and the headline result. \emph{Top:} a real
+    anchor from the held-out-time test set (4 of its 7 candidates
+    shown; bars = token Jaccard). GLEIF records a completed
+    lifecycle event on the predecessor; methods must rank the true
+    successor above deliberately name-similar hard negatives. Name
+    similarity ranks a coincidental collision first and the true
+    successor --- zero shared tokens --- last
+    (\S\ref{ssec:err}). \emph{Bottom:} on the released pool the
+    supervised feature baseline ($\dag$) posts the best score by
+    \emph{exploiting} that construction; it collapses once the
+    candidate pool shifts (Figure~\ref{fig:matrix}), while the
+    cross-encoder holds.}
   \label{fig:task}
 \end{figure}
 
@@ -199,23 +218,19 @@ use the single fine-tuned L-6 cross-encoder.
 
 \section{Related Work}
 
-\paragraph{Entity resolution and record linkage.} Classical
-ER~\cite{fellegisunter1969} matches records via similarity over
-structured fields. Modern PLM cross-encoders on serialized records
-(Ditto~\cite{ditto2021}, GraLMatch~\cite{gralmatch2025}) are now standard, and the
+Classical ER~\cite{fellegisunter1969} matches records via
+similarity over structured fields; modern PLM cross-encoders on
+serialized records (Ditto~\cite{ditto2021},
+GraLMatch~\cite{gralmatch2025}) are now standard, and the
 OpenSanctions Pairs corpus~\cite{opensanctions2026} benchmarks LLM
-matching at 755K pairs. All adopt a \emph{snapshot} framing, not
-lifecycle-spanning matches.
-
-\paragraph{Temporal entity linking.} TempEL~\cite{tempel2022}
+matching at 755K pairs --- all under a \emph{snapshot} framing,
+not lifecycle-spanning matches. TempEL~\cite{tempel2022}
 time-stratifies entity linking against an evolving Wikipedia, but
-the task is mention-to-KB disambiguation, not record-to-record
-matching over legal entities.
-
-\paragraph{Financial entity knowledge graphs.} Recent work at the ACM
-Conference on AI in Finance constructs financial-filing knowledge
-graphs (FinReflectKG~\cite{finreflectkg2025}) at a single time
-slice; the lifecycle-bridge question is orthogonal.
+that task is mention-to-KB disambiguation, not record-to-record
+matching over legal entities. Financial-filing knowledge graphs
+(FinReflectKG~\cite{finreflectkg2025}, from this conference) are
+constructed at a single time slice; the lifecycle-bridge question
+is orthogonal.
 
 \section{The Sylvester Benchmark}
 \label{sec:benchmark}
@@ -602,26 +617,27 @@ negatives are deliberately name-similar to the predecessor while
 positives are by construction name-different, so on this candidate
 distribution name similarity is \emph{evidence against} a true
 successor link. So we report the mirror image as its own baseline:
-\texttt{anti-token\_set} ranks candidates by \emph{negated} Jaccard,
-and on the curated pool it is strong --- 0.700 / 0.638 / 0.516
-Hits@1, \emph{above} the single L-6 cross-encoder on time and event
---- because picking the least name-similar candidate exploits the
-construction.
+\texttt{anti-token\_set} ranks candidates by \emph{negated}
+Jaccard, and on the curated pool it is strong
+(Table~\ref{tab:main_results}; \emph{above} the single L-6
+cross-encoder on time and event) because picking the least
+name-similar candidate exploits the construction.
 
 The supervised \texttt{features\_gbm} baseline is the exploit's
 learned apotheosis: given training labels, it discovers the
 inversion plus the miners' residual signatures, and posts the best
-on-pool numbers in this paper (0.772 / 0.734 / 0.835 Hits@1,
-0.93--0.96 AUROC) --- above the L-6$\times$L-12 ensemble on
-TIME/EVENT ($p < 10^{-4}$ paired permutation; JURIS n.s.).
-Off-pool it collapses: 0.28 / 0.27 / 0.36 on
-\textsc{Sylvester-TF-IDF} (AUROC 0.54--0.57) and 0.12--0.15
-conditional Hits@1 fielded (AUROC $\approx$ 0.5). Retraining the
-GBM on the harder TF-IDF negatives buys real robustness (0.53 /
-0.53 / 0.69 cross-pool; 0.31--0.34 fielded): negative
-\emph{quality} matters for feature models. It still trails the
-cross-encoder's fielded conditional by 17--20\,pp --- and the
-cross-encoder never needed the harder pool to transfer.
+on-pool numbers in this paper (Table~\ref{tab:main_results}) ---
+above the L-6$\times$L-12 ensemble on TIME/EVENT ($p < 10^{-4}$
+paired permutation; JURIS n.s.). Off-pool it collapses
+(Figure~\ref{fig:matrix}; JURIS: 0.36 on
+\textsc{Sylvester-TF-IDF}, 0.12 fielded; AUROC 0.54--0.57 and
+$\approx$0.5 respectively). Retraining the GBM on the harder
+TF-IDF negatives buys partial robustness
+(Figure~\ref{fig:matrix}, third row; JURIS: 0.69 cross-pool, 0.31
+fielded): negative \emph{quality} matters for feature models.
+It still trails the cross-encoder's fielded conditional by
+17--20\,pp --- and the cross-encoder never needed the harder pool
+to transfer.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
 surviving none of the condition changes we test. On
@@ -637,9 +653,10 @@ cross-encoder on every split (Table~\ref{tab:main_results}).
 Curated-pool Hits@1 alone can therefore be gamed; the
 cross-encoder's claim is being strong \emph{simultaneously} on the
 curated pool, the alternative-miner pool, the fielded pool, and
-every event type with a usable sample. The mechanism is joint attention: asking whether the
-\emph{differences} between two records look like a lifecycle-event
-pattern, not how similar two strings are.
+every event type with a usable sample
+(Figure~\ref{fig:matrix}). The mechanism is joint attention:
+asking whether the \emph{differences} between two records look
+like a lifecycle-event pattern, not how similar two strings are.
 
 \subsection{Per-event-type breakdown}
 \label{ssec:per_event}
@@ -703,6 +720,22 @@ survive an evaluation pool built with a mechanically different
 miner, or is the headline number partly an artifact of how the
 negatives were chosen?
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig9_generalization_matrix.pdf}
+  \caption{The argument in one exhibit: expected Hits@1
+    (TIME\,/\,EVENT; fill $=$ mean) as the candidate pool shifts
+    from the released pool to an unrelated miner's pool to
+    retrieval from the full 3.3M-entity universe. Both exploits
+    collapse off-pool; retraining the GBM on harder negatives
+    recovers only part; the cross-encoder is the only method that
+    holds everywhere. Fielded cells include the gold for
+    evaluability --- strict retrieval-conditional and end-to-end
+    numbers in the text; JURIS ($n{=}88$) in
+    Tables~\ref{tab:main_results} and~\ref{tab:robustness}.}
+  \label{fig:matrix}
+\end{figure}
+
 \paragraph{Setup.} We re-mine hard negatives with sparse char-3gram
 TF-IDF cosine (same signal as the \texttt{tfidf\_char} baseline) ---
 chosen because it has no learned representation and shares no
@@ -753,29 +786,22 @@ miner-matched cell in the matrix is trn-TF-IDF on the TF-IDF pool.
   \end{tabular}
 \end{table*}
 
-\paragraph{What the 2$\times$2 tells us.} First, the cross-encoder \emph{architecture}
-generalizes well across miners: the TF-IDF-trained cross-encoder evaluated on
-the benchmark pool reaches 0.588 / 0.533 / 0.750 Hits@1 --- within 1--2\,pp of
-the E5-trained model on TIME/EVENT (4.5\,pp ahead on thin JURIS,
-inside its CI) despite never seeing that pool's miner. Symmetrically,
-the E5-trained model on the TF-IDF pool stays well above every
-non-cross-encoder method.
-
-Second, there is a real but bounded in-distribution effect. The E5-trained
-cross-encoder loses 2--13\,pp Hits@1 when moved to the TF-IDF evaluation pool
-(0.600 $\to$ 0.545 on time; 0.705 $\to$ 0.571 on jurisdiction). Conversely,
-the TF-IDF-trained model gains $+7$--$11$\,pp on the TF-IDF pool over the E5-trained one.
-So aligning the training miner with the evaluation pool --- testable
-only in the TF-IDF column --- is worth $+7$--$11$\,pp, and pool shift
-costs the E5-trained model 2--13\,pp: non-trivial, but not the
-headline gap.
-
-Third, the cross-encoder gain over zero-shot E5 \emph{is robust} to
-the miner: headline pairings show $+20$ to $+40$\,pp across all six
-columns and swapped pairings still $+13$ to $+39$\,pp --- smaller,
-but well outside any CI band. Joint encoding does real work on lifecycle ER --- but the absolute
-size of the gain depends on how the candidate pool was mined, so the
-``$+27$--$35$\,pp'' figure in the abstract should be read in that light.
+\paragraph{What the 2$\times$2 tells us.} First, the cross-encoder
+\emph{architecture} generalizes across miners: the TF-IDF-trained
+model evaluated on the benchmark pool lands within 1--2\,pp of the
+E5-trained model on TIME/EVENT (4.5\,pp ahead on thin JURIS, inside
+its CI) despite never seeing that pool's miner, and the E5-trained
+model on the TF-IDF pool stays well above every non-cross-encoder
+method. Second, in-distribution alignment is real but bounded: pool
+shift costs the E5-trained model 2--13\,pp, and matching the
+training miner to the evaluation pool is worth $+7$--$11$\,pp ---
+non-trivial, but not the headline gap. Third, the gain over
+zero-shot E5 is robust to the miner: $+20$ to $+40$\,pp in the
+headline pairings and $+13$ to $+39$\,pp swapped, well outside any
+CI band. Joint encoding does real work on lifecycle ER --- but the
+absolute size of the gain depends on how the candidate pool was
+mined, so the ``$+27$--$35$\,pp'' figure in the abstract should be
+read in that light.
 
 \paragraph{Fielded retrieve-then-rerank.} The miner-robustness
 experiment above shifts the mining signal but still draws candidates
@@ -786,11 +812,10 @@ reranks. We simulate that here. The trained
 \texttt{method\_v2\_full} bi-encoder retrieves top-20 candidates per
 test anchor from the full 3.3M-entity GLEIF universe, restricted to
 the anchor's jurisdiction (the lightest filter a production system
-would apply); the cross-encoder reranks. The filter itself is
-nearly free: only 1.8--4.1\,\% of test positives have a successor
-in a different country, so it caps recall at $\geq$96\,\% --- far
-above the observed 33--50\,\%; the bottleneck is the embedding,
-not the filter.
+would apply); the cross-encoder reranks. The filter is nearly free
+(1.8--4.1\,\% of test positives cross countries, capping recall at
+$\geq$96\,\%, far above the observed 33--50\,\%): the bottleneck
+is the embedding, not the filter.
 
 Bi-encoder Recall@20 is 33.2 / 39.6 / 49.7\% on TIME / EVENT /
 JURIS. That is the hard ceiling for any reranker. When the bi-encoder
@@ -801,12 +826,11 @@ distractors look genuinely lifecycle-plausible.
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6
 cross-encoder and 18--30\% for the ensemble. The drop from
-57--61\% in-distribution on time/event (75\% on JURIS, $n=88$)
-to 15--30\% deployment confirms rather than contradicts
-\S\ref{ssec:bi}: the bi-encoder's fixed-embedding limit, which
-fails to retrieve lifecycle-spanning successors by cosine
-similarity, is exactly the bottleneck the anti-correlation
-analysis predicts.
+57--61\% in-distribution to 15--30\% deployment confirms rather
+than contradicts \S\ref{ssec:bi}: the bi-encoder's
+fixed-embedding limit, which fails to retrieve lifecycle-spanning
+successors by cosine similarity, is exactly the bottleneck the
+anti-correlation analysis predicts.
 
 \subsection{Ablations}
 
@@ -970,7 +994,7 @@ draws candidates from the full 3.3M-entity GLEIF universe
 bi-encoder Recall@20 is 33--50\,\%, so the reranker often never sees
 the true successor. The miner-robustness experiment shows the
 cross-encoder gain is partly pool-specific but survives miner shift
-($+13$ to $+39$\,pp cross-pool). A stronger first-stage retriever (hybrid sparse--dense, or a
+($+13$ to $+39$\,pp cross-pool; Figure~\ref{fig:matrix}). A stronger first-stage retriever (hybrid sparse--dense, or a
 pre-filtered cross-encoder shortlist) is the highest-leverage
 future work.
 

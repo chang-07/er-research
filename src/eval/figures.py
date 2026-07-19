@@ -364,7 +364,7 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
             los[(stem, s)] = np.percentile(boots, 2.5)
             his[(stem, s)] = np.percentile(boots, 97.5)
 
-    fig, ax = plt.subplots(figsize=(3.5, 1.9))
+    fig, ax = plt.subplots(figsize=(3.5, 1.55))
     n = len(MODELS)
     width = 0.13
     xg = np.arange(len(SPLITS))
@@ -398,3 +398,84 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
                     dpi=200, bbox_inches="tight")
     plt.close(fig)
     print("wrote fig8_llm_panel.pdf/.png")
+
+
+def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
+    """Methods x evaluation-condition matrix: E[Hits@1] on TIME / EVENT
+    as the candidate pool shifts from the released benchmark pool to the
+    TF-IDF-mined pool to the fielded 3.3M-universe pool (gold included
+    for evaluability; strict conditional + end-to-end in Sec 5.4).
+    Cell text is "TIME / EVENT"; fill color is their mean (single-hue
+    sequential -> CVD-safe). JURIS (n=88) intentionally excluded; see
+    Tables 1/5. Summarizes numbers already reported in Tables 1/5 and
+    Sec 5.2/5.4 -- computed live here from the prediction parquets."""
+    import numpy as np
+    import pyarrow.parquet as pq
+    from ranking import per_anchor_expected
+
+    def h1(pairs, predfile, negate, regime):
+        pr = pq.read_table(os.path.join(data, "predictions", predfile),
+                           columns=["anchor_lei", "candidate_lei", "score"]
+                           ).to_pandas()
+        d = pairs.merge(pr, on=["anchor_lei", "candidate_lei"], how="left")
+        d["score"] = d["score"].fillna(0.0) * (-1 if negate else 1)
+        test = d[d[regime] == "test"]
+        return float(np.mean([h[1] for _, h, _ in
+                              per_anchor_expected(test, ks=(1,))]))
+
+    pools = {p: pq.read_table(os.path.join(data, f)).to_pandas()
+             for p, f in [("bench", "pairs.parquet"),
+                          ("v3", "pairs_v3.parquet"),
+                          ("fld", "pairs_fielded.parquet")]}
+    ROWS = [
+        ("inverted token-set\n(unsupervised exploit)", True,
+         {"bench": "token_set.parquet", "v3": "token_set_v3.parquet",
+          "fld": "token_set_fielded.parquet"}),
+        ("feature GBM\n(supervised exploit)", False,
+         {"bench": "features_gbm.parquet", "v3": "features_gbm_v3.parquet",
+          "fld": "features_gbm_fielded.parquet"}),
+        ("feature GBM,\nTF-IDF-mined negs", False,
+         {"bench": "features_gbm_trnv3.parquet",
+          "v3": "features_gbm_trnv3_v3.parquet",
+          "fld": "features_gbm_trnv3_fielded.parquet"}),
+        ("cross-encoder L-6\n(this paper)", False,
+         {"bench": "method_v2_crossenc.parquet",
+          "v3": "method_v2_crossenc_repro_on_pairs_v3.parquet",
+          "fld": "method_v2_crossenc_fielded.parquet"}),
+    ]
+    COLS = [("bench", "released pool"), ("v3", "TF-IDF pool"),
+            ("fld", "fielded (3.3M)")]
+
+    T = np.zeros((len(ROWS), len(COLS)))
+    E = np.zeros_like(T)
+    for i, (_, neg, files) in enumerate(ROWS):
+        for j, (pk, _) in enumerate(COLS):
+            T[i, j] = h1(pools[pk], files[pk], neg, "split_time")
+            E[i, j] = h1(pools[pk], files[pk], neg, "split_event")
+    M = (T + E) / 2.0
+
+    fig, ax = plt.subplots(figsize=(3.4, 1.58))
+    im = ax.imshow(M, cmap="Blues", vmin=0.0, vmax=0.85, aspect="auto")
+    for i in range(M.shape[0]):
+        for j in range(M.shape[1]):
+            ink = "white" if M[i, j] > 0.45 else "#1a1a1a"
+            ax.text(j, i, f"{T[i, j]:.2f} / {E[i, j]:.2f}",
+                    ha="center", va="center", fontsize=7.4,
+                    fontweight="bold", color=ink)
+    ax.set_xticks(range(len(COLS)),
+                  [c[1] for c in COLS], fontsize=6.8)
+    ax.set_yticks(range(len(ROWS)),
+                  [r[0] for r in ROWS], fontsize=6.8)
+    ax.tick_params(which="both", length=0)
+    for s in ax.spines.values():
+        s.set_visible(False)
+    ax.set_xticks(np.arange(-.5, len(COLS)), minor=True)
+    ax.set_yticks(np.arange(-.5, len(ROWS)), minor=True)
+    ax.grid(which="minor", color="white", linewidth=2.2)
+    fig.tight_layout(pad=0.15)
+    for ext in ("pdf", "png"):
+        fig.savefig(os.path.join(out_dir,
+                    f"fig9_generalization_matrix.{ext}"),
+                    dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print("wrote fig9_generalization_matrix", file=sys.stderr)
