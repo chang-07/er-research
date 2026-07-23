@@ -20,16 +20,22 @@ No proprietary sources required; the full pipeline runs end-to-end on a laptop.
    each predecessor; true successors are by construction *name-different*. So on
    this benchmark, name similarity is **evidence against** a match — every
    similarity baseline lands **below 0.5 AUROC** on the time/event splits.
-2. **Joint encoding is what closes the gap.** A 22M-param MiniLM **L-6 cross-encoder**
-   reaches **0.607 / 0.569 / 0.750 Hits@1** and **0.836 / 0.825 / 0.868 AUROC**
-   across the TIME / EVENT / JURIS splits (expected Hits@1 over random
-   tie-breaking) — **+35 / +27 / +24 pp** over the best bi-encoder, and above all
-   six zero-shot LLMs tested (4 orgs). An L-6×L-12 ensemble reaches **0.700 / 0.677 / 0.784**.
-3. **The benchmark "cuts both ways."** Because the construction makes
-   *dissimilarity* predictive, anti-similarity (negated Jaccard) scores
-   **0.700 / 0.638 / 0.516** on the curated pool, and a **supervised 12-feature
-   GBM tops everything on-pool** (0.772 / 0.734 / 0.835 — above the ensemble).
-   Curated Hits@1 alone is gameable, even by the production-default matcher.
+2. **Among name-input methods, joint encoding is the only survivor.** A 22M-param
+   MiniLM **L-6 cross-encoder** reaches **0.607 / 0.569 / 0.750 Hits@1** across
+   TIME / EVENT / JURIS — **+35 / +27 / +24 pp** over the best bi-encoder, above
+   all six zero-shot LLMs tested (4 orgs), and it alone transfers across all
+   three pools with name+state inputs. An L-6×L-12 ensemble reaches
+   **0.700 / 0.677 / 0.784**.
+3. **The benchmark "cuts both ways" — and the ceiling is the input, not the
+   architecture.** Anti-similarity (negated Jaccard) scores **0.700 / 0.638 /
+   0.516** on-pool and a name-feature GBM tops every name-only method
+   (0.772 / 0.734 / 0.835); both collapse off-pool. But a GBM trained on the
+   cross-encoder's own E5 negatives **with the full structured record**
+   (liveness, addresses, previous names, dates) **transfers everywhere and
+   wins**: 0.783 / 0.753 / 0.881 on-pool (+18 pp over the L-6, p<1e-4),
+   0.78 / 0.75 cross-miner, 0.51–0.66 fielded retrieval-conditional (n.s. vs
+   the enriched ensemble). The lifecycle signal lives in the record, not the
+   name.
 4. **The honest numbers come from off-pool tests.** Both exploits **collapse**
    off-pool (GBM: 0.27–0.36 on a different-miner pool, 0.12–0.15 fielded);
    the cross-encoder stays strong **simultaneously** on every
@@ -255,6 +261,10 @@ python3 src/baselines/cheap.py   --data data/   # exact_name, token_set, tfidf_c
 python3 src/baselines/encoder.py --data data/   # E5-small-v2 zero-shot
 python3 src/baselines/features_gbm.py --data data/  # supervised GBM over string+state features
                                                     # (trains no-leakage; scores all 3 pools)
+python3 src/data/build_pairs_v2.py --data data/     # E5-negative pool (matches CE training negs)
+python3 src/baselines/features_gbm.py --data data/ --train-pairs pairs_v2.parquet \
+    --features full --out-suffix _trnv2full         # full-record GBM (the de-confounded variant)
+python3 src/eval/eval_gbm_sweep.py data/            # score the sweep on all 3 pools + fielded views
 python3 src/eval/evaluate.py     --data data/   # AUROC, AUPRC, Hits@K, MRR
 ```
 LLM pairwise drives paid APIs and is **not** run autonomously. It needs a key

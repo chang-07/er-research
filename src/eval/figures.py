@@ -376,7 +376,7 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
             los[(stem, s)] = np.percentile(boots, 2.5)
             his[(stem, s)] = np.percentile(boots, 97.5)
 
-    fig, ax = plt.subplots(figsize=(3.5, 1.42))
+    fig, ax = plt.subplots(figsize=(3.5, 1.30))
     n = len(MODELS)
     width = 0.13
     xg = np.arange(len(SPLITS))
@@ -453,7 +453,11 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
          {"bench": "features_gbm_trnv3.parquet",
           "v3": "features_gbm_trnv3_v3.parquet",
           "fld": "features_gbm_trnv3_fielded.parquet"}),
-        ("cross-encoder L-6\n(this paper)", False,
+        ("feature GBM, full record\n(E5 negs)", False,
+         {"bench": "features_gbm_trnv2full.parquet",
+          "v3": "features_gbm_trnv2full_v3.parquet",
+          "fld": "features_gbm_trnv2full_fielded.parquet"}),
+        ("cross-encoder L-6\n(names only)", False,
          {"bench": "method_v2_crossenc.parquet",
           "v3": "method_v2_crossenc_repro_on_pairs_v3.parquet",
           "fld": "method_v2_crossenc_fielded.parquet"}),
@@ -474,7 +478,7 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
     from matplotlib.patches import Rectangle
 
     cmap = plt.get_cmap("Blues")
-    fig, ax = plt.subplots(figsize=(3.4, 1.44))
+    fig, ax = plt.subplots(figsize=(3.4, 1.66))
     # Ramp top is held above the max cell so a single dark ink clears
     # 4.5:1 contrast on every cell (checked; worst case 4.6:1).
     for i in range(M.shape[0]):
