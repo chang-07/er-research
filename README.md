@@ -261,7 +261,7 @@ python3 src/baselines/cheap.py   --data data/   # exact_name, token_set, tfidf_c
 python3 src/baselines/encoder.py --data data/   # E5-small-v2 zero-shot
 python3 src/baselines/features_gbm.py --data data/  # supervised GBM over string+state features
                                                     # (trains no-leakage; scores all 3 pools)
-python3 src/data/build_pairs_v2.py --data data/     # E5-negative pool (matches CE training negs)
+python3 src/benchmark/build_pairs_v2.py --data data/     # E5-negative pool (matches CE training negs)
 python3 src/baselines/features_gbm.py --data data/ --train-pairs pairs_v2.parquet \
     --features full --out-suffix _trnv2full         # full-record GBM (the de-confounded variant)
 python3 src/eval/eval_gbm_sweep.py data/            # score the sweep on all 3 pools + fielded views
