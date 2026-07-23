@@ -70,7 +70,7 @@ methods that exploit this --- inverted name similarity (64--70\%
 Hits@1 on time/event) and a name-feature GBM (0.73--0.84, the best
 name-input scores we observe) --- collapse on the other two
 pools.
-Among methods restricted to name and registration-state inputs, a
+Among name-input methods, a
 22M-parameter MiniLM cross-encoder is the only one that transfers:
 0.82--0.87 AUROC across the three regimes, 57--61\% Hits@1 on
 time/event ($\pm$2.0--2.3\,pp 95\% CI), 24--35\,pp above the
@@ -85,7 +85,7 @@ across every pool, beating the name-input cross-encoder on-pool by
 18\,pp ($p<10^{-4}$) at negligible cost; architecture then
 decides what survives shift --- a cross-encoder over the same
 record ties the trees on curated pools and wins where deployment
-lives, $+$12\,pp retrieval-conditional on the fielded universe
+lives, $+12$\,pp retrieval-conditional on the fielded universe
 ($p<10^{-4}$), the best we measure. The lifecycle
 signal is in the record; joint encoding keeps most of it under
 pool shift. End-to-end even the best system reaches 21--39\%
@@ -165,7 +165,7 @@ true lifecycle successor?} (Figure~\ref{fig:task}.)
       \textcolor{black!45}{\rule[0.2pt]{27.4pt}{5pt}} & .20\\
     best zero-shot LLM (Opus 4.7) &
       \textcolor{black!45}{\rule[0.2pt]{47.3pt}{5pt}} & .35\\
-    cross-encoder L-6 (name$+$state) &
+    cross-encoder L-6 (name+state) &
       \textcolor{teal!70!black}{\rule[0.2pt]{81.9pt}{5pt}} & .61\\
     feature GBM (full record) &
       \textcolor{black!45}{\rule[0.2pt]{105.6pt}{5pt}} & .78\\
@@ -213,7 +213,7 @@ true lifecycle successor?} (Figure~\ref{fig:task}.)
         similarity and a name-feature GBM post the best
         name-input on-pool scores we observe, then collapse on the
         two other pools
-        (\S\ref{ssec:anti}). Among name+state-input methods a
+        (\S\ref{ssec:anti}). Among name-input methods, a
         22M-parameter cross-encoder is the only one that transfers
         (24--35\,pp Hits@1 over the best bi-encoder, above all six
         zero-shot LLMs on TIME/EVENT; gains concentrated on M\&A
@@ -643,8 +643,9 @@ problem more parameters fix.
     4) and joint encoding (row 6) both transfer --- and the
     full-record cross-encoder holds the highest minimum and wins
     the fielded pool (\S\ref{ssec:anti}). The
-    name+state TF-IDF cell is the \texttt{trn-E5} reproduction
-    (within 2\,pp); fielded cells include the gold (strict
+    name+state TF-IDF cell re-trains that cross-encoder on E5-cosine
+    negatives (\texttt{trn-E5}, \S\ref{ssec:robustness}), within
+    2\,pp; fielded cells include the gold (strict
     conditional and end-to-end in the text); JURIS in the text and
     tables.}
   \Description{A six-row by three-column matrix of expected
@@ -697,7 +698,7 @@ negatives, it wins the released pool (0.87 / 0.84) yet still
 fails to cross pools (0.38 / 0.35 on TF-IDF). Given
 \emph{both}, it transfers everywhere and wins
 (\texttt{features\_gbm-full}): 0.78 / 0.75 on-pool
-($+$18\,pp over the L-6, $p<10^{-4}$; $+$8\,pp over the
+($+18$\,pp over the L-6, $p<10^{-4}$; $+8$\,pp over the
 ensemble), 0.78 / 0.75 on TF-IDF, and 0.51--0.66 fielded
 retrieval-conditional, where the enriched ensemble leads by
 1--3\,pp on TIME/EVENT and trails by 6\,pp on JURIS (all n.s.)
@@ -715,7 +716,7 @@ fields the GBM sees) lands 2--5\,pp behind the trees on-pool
 (0.76 / 0.71, $p\leq0.018$), ties them on TF-IDF
 (0.77 / 0.73), and pulls decisively ahead where deployment
 lives: 0.64 / 0.66 / 0.78 fielded retrieval-conditional,
-$+$12\,pp over the GBM and $+$9--12\,pp over the ensemble (all
+$+12$\,pp over the GBM and $+9$--$18$\,pp over the ensemble (all
 $p<10^{-4}$); best end-to-end in the paper (21--39\%).
 
 The claims accordingly split by input class and by pool. Among
@@ -884,7 +885,7 @@ JURIS. That is the hard ceiling for any reranker. When the bi-encoder
 does retrieve the true successor, the L-6 picks it \#1 with
 46--57\% Hits@1, the ensemble 53--60\%, the full-record GBM
 51--66\% (n.s.\ vs.\ the ensemble) --- and the full-record
-cross-encoder 64--78\%, $+$12\,pp clear of every other reranker
+cross-encoder 64--78\%, $+12$\,pp clear of every other reranker
 ($p<10^{-4}$; \S\ref{ssec:anti}).
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6,
@@ -964,8 +965,7 @@ modeling of corporate-hierarchy relationships.
   \centering
   \scriptsize
   \caption{Negative-class mean score (lower is better) on
-    negatives \emph{never seen in training} ($n =$ 99 / 1{,}398 /
-    1{,}096 / 20{,}759): \emph{p/s} parent/subsidiary, \emph{sn-D}
+    negatives \emph{never seen in training} ($n{=}99$ / $1{,}398$ / $1{,}096$ / $20{,}759$): \emph{p/s} parent/subsidiary, \emph{sn-D}
     same-name/diff-country, \emph{sn-S} same-name/same-country,
     \emph{tok} token-overlap. The ensemble improves three classes
     but \emph{worsens} \emph{p/s} ($0.67 \to 0.75$):
@@ -1038,11 +1038,11 @@ highest-leverage future work.
 \paragraph{Seed variance and a sliver of mislabeled hard negatives.}
 Over seeds 42/7/1337 the bi-encoder varies $\pm 0.5/0.4/1.6$\,pp
 and the enriched cross-encoder $\pm 0.5/0.3/1.6$\,pp
-(TIME/EVENT/JURIS). The new headline systems are stable too: the
-full-record GBM moves $\leq$0.5\,pp on-pool and $\leq$1.2\,pp
-fielded-conditional; the full-record cross-encoder spreads
-1.6--3.4\,pp and 3.3--3.9\,pp respectively, and its \emph{worst}
-seed still leads the GBM's best fielded by $\approx$8\,pp.
+(TIME/EVENT/JURIS). The new headline systems are seed-stable: on-pool the full-record
+GBM moves $\leq$0.5\,pp and the cross-encoder 1.2--3.4\,pp;
+fielded-conditional, both stay within $\approx$4\,pp on TIME/EVENT
+(wider on 80-anchor JURIS), and the cross-encoder's \emph{worst}
+seed still leads the GBM's best fielded by $\approx$8\,pp there.
 Separately, $205/93{,}695 = 0.22\%$ of hard negatives appear in
 GLEIF's \texttt{SuccessorEntity}; dropping them moves results
 $\leq$0.2\,pp.
@@ -1058,8 +1058,8 @@ splits, but per-split absolutes carry those sample sizes.
 Eligibility itself conditions on a name-colliding neighbour
 existing, amplifying the construction (\S\ref{ssec:metrics}); a
 277-pair second-classifier check bounds detectable label noise at
-$<$2\% (\S\ref{ssec:diagnostics}). Scoring the 244 released
-marquee pairs against \emph{random} same-country pools (no
+$<$2\% (\S\ref{ssec:diagnostics}). Scoring the marquee supplement (283 pairs, 244 anchors)
+against \emph{random} same-country pools (no
 adversarial mining; script released) inverts the picture: token
 Jaccard scores 0.41 while the name+state cross-encoder falls below
 chance (0.07) --- models trained here inherit the pool's
@@ -1089,7 +1089,7 @@ may partly reflect exposure to GLEIF-derived text.
 
 \paragraph{The model is specialized, and parent/subsidiary is a
 thin slice.} The cross-encoder underperforms zero-shot E5-small on
-out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
+out-of-domain product matching (Walmart-Amazon, $-5.9$\,pp AUROC;
 \S\ref{ssec:diagnostics}): the representation is specialized to
 lifecycle ER, not generic. The full-record cross-encoder closes
 the input gap (\S\ref{ssec:anti}) but pays the usual joint-encoding
@@ -1114,7 +1114,7 @@ ceiling: boosted trees over the full structured record transfer
 across every pool at negligible cost, and a cross-encoder over the
 same record keeps the most signal under shift, winning the fielded
 universe by 12\,pp --- the lifecycle signal lives in the record,
-and joint encoding is how you keep it. What remains open is the
+and joint encoding keeps the most of it under shift. What remains open is the
 first stage: even the best reranker is capped by 33--50\%
 retrieval recall, so in our fielded simulation it is candidate
 generation, not matching, where lifecycle ER breaks.
