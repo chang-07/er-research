@@ -73,6 +73,7 @@ def main():
         ("cross-encoder v2", "method_v2_crossenc"),
         ("bi-encoder v2_full", "method_v2_full"),
         ("E5-small zero-shot", "sentence_encoder"),
+        ("cross-encoder full-record", "method_ce_fullrecord"),
     ]
 
     metric_rows = []

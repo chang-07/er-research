@@ -124,15 +124,14 @@ at different times, do they describe the same economic entity,
 accounting for any lifecycle event that may have occurred between
 them?}
 
-A natural concern: the benchmark is engineered against name similarity
-by construction --- negatives are mined name-similar while lifecycle
-successors are, by definition, name-different. This is deliberate,
-documented (\S\ref{ssec:splits}, \S\ref{ssec:anti}), and measured:
-we report the inverted-similarity exploit as its own baseline. The question the benchmark asks is the discriminative
-sub-problem a two-stage pipeline faces after a name-aware retriever
-narrows the field: \emph{given a name-similar candidate pool,
-what identifies the true lifecycle successor?}
-(Figure~\ref{fig:task}.)
+A natural concern: the benchmark is engineered against name
+similarity --- negatives are mined name-similar while successors
+are, by definition, name-different. This is deliberate, documented,
+and measured: the inverted exploit is its own baseline
+(\S\ref{ssec:anti}). The benchmark asks the discriminative
+sub-problem after a name-aware retriever narrows the field:
+\emph{given a name-similar candidate pool, what identifies the
+true lifecycle successor?} (Figure~\ref{fig:task}.)
 
 \begin{figure}[t]
   \centering
@@ -178,18 +177,16 @@ what identifies the true lifecycle successor?}
     \end{tabular}};
   \end{tikzpicture}
   \caption{The task and the headline result. \emph{Top:} a real
-    anchor from the held-out-time test set (4 of its 7 candidates
-    shown; bars = token Jaccard). GLEIF records a completed
-    lifecycle event on the predecessor; methods must rank the true
-    successor above deliberately name-similar hard negatives. Name
-    similarity ranks a coincidental collision first and the true
-    successor --- zero shared tokens --- last
-    (\S\ref{ssec:err}). \emph{Bottom:} the gap closes with
-    \emph{input}, not architecture: zero-shot name scoring fails,
-    a cross-encoder on the same name+state inputs reaches .61, and
-    boosted trees over the full registry record reach .78; a
-    name-only exploit also hits .77 here but collapses off-pool
-    (Figure~\ref{fig:matrix}, \S\ref{ssec:anti}).}
+    held-out-time test anchor (4 of 7 candidates; bars = token
+    Jaccard). Methods must rank the true successor above
+    deliberately name-similar negatives; name similarity ranks a
+    coincidental collision first and the true successor --- zero
+    shared tokens --- last (\S\ref{ssec:err}). \emph{Bottom:}
+    the gap closes with \emph{input}, not architecture: zero-shot
+    name scoring fails, a cross-encoder on name+state reaches .61,
+    boosted trees over the full record reach .78 (a name-only
+    exploit hits .77 here but collapses off-pool;
+    Figure~\ref{fig:matrix}, \S\ref{ssec:anti}).}
   \Description{A diagram of one benchmark anchor and its candidate
     pool. The anchor record, DB HR Solutions GmbH in Germany, carries
     a completed mergers-and-acquisitions lifecycle event. Four
@@ -243,9 +240,8 @@ what identifies the true lifecycle successor?}
         breaks at the first stage.
 \end{enumerate}
 
-An enriched-prompt L-6$\times$L-12 ensemble lifts Hits@1 a further
-9--11\,pp on time/event (Table~\ref{tab:v7}); baseline comparisons
-use the single fine-tuned L-6 cross-encoder.
+Baseline comparisons use the single fine-tuned L-6; the enriched
+L-6$\times$L-12 ensemble adds 9--11\,pp (Table~\ref{tab:v7}).
 
 \section{Related Work}
 
@@ -288,13 +284,11 @@ sources:
         successor by LEI.
 
   \item \textbf{GLEIF Level-2 Relationship Records.} 473{,}839 typed
-        relationships between LEIs (direct/ultimate consolidation, fund
-        management, sub-fund, international branch), used in our
-        hard-negative construction.
+        inter-LEI relationships, used in hard-negative construction.
 
-  \item \textbf{Wikidata.} High-profile M\&A via SPARQL on the P156
-        (\emph{followed by}) property, restricted to businesses; a
-        marquee supplement and cross-validation source.
+  \item \textbf{Wikidata.} High-profile M\&A via SPARQL on P156
+        (\emph{followed by}); a marquee supplement and
+        cross-validation source.
 
   \item \textbf{SEC EDGAR.} \texttt{company\_tickers.json} (10{,}354
         records) gives a name$\leftrightarrow$CIK crosswalk to GLEIF
@@ -493,7 +487,10 @@ from Opus 4.7, which holds the higher point estimate (0.767 vs.\
 every Claude model outscores both other API vendors' frontier
 models on every split, including Haiku, the cheapest tested;
 \S\ref{sec:limitations} examines the elicitation-format confound
-behind part of this spread.
+behind part of this spread. Under Holm correction across all
+$\sim$30 paired tests in the paper, every $p<10^{-4}$ result
+survives; the $p\approx0.02$ JURIS-level and on-pool-TIME margins
+do not, and should be read as directional.
 
 \subsection{Metrics}
 \label{ssec:metrics}
@@ -503,10 +500,10 @@ AUPRC, and threshold-tuned F1 ship with the released metrics.
 Discrete scorers tie frequently, so Hits@k/MRR are exact
 \emph{expectations over uniformly random tie-breaking} (a fixed
 tie order is biased). Per-anchor metrics cover \emph{eligible}
-anchors --- pool size $\geq 2$ with the gold present; the 37\% of
-predecessors with no mined hard negative (\S\ref{sec:benchmark})
-have singleton pools and are excluded (e.g., 1{,}612 of 2{,}760
-EVENT-test anchors are eligible).
+anchors --- pool size $\geq 2$ with the gold present; the 37\%
+of predecessors with no mined hard negative have singleton pools
+and are excluded (1{,}612 of 2{,}760 EVENT-test anchors are
+eligible; \S\ref{sec:benchmark}).
 
 \subsection{Headline results}
 \label{ssec:main}
@@ -597,11 +594,11 @@ hurts $-0.9 / -1.9 / -9.1$\,pp --- the model learns a
 \begin{table}[t]
   \centering\scriptsize
   \setlength{\tabcolsep}{2.5pt}
-  \caption{Cross-encoder extensions: Hits@1 [95\% bootstrap CI].
-    Headline L-6 row repeated from Table~\ref{tab:main_results}.
-    Prompt enrichment is the largest single increment on TIME/EVENT;
-    the L-12 pairing captures the JURIS gain (its CIs overlap across
-    the chain --- read per-step deltas as directional).}
+  \caption{Cross-encoder extensions: Hits@1 [95\% bootstrap
+    CI]; L-6 row repeated from Table~\ref{tab:main_results}.
+    Prompt enrichment is the largest increment on TIME/EVENT; the
+    L-12 pairing captures the JURIS gain (CIs overlap --- read
+    per-step deltas as directional).}
   \label{tab:v7}
   \begin{tabular}{@{}l c c c@{}}
     \toprule
@@ -797,11 +794,10 @@ negatives were chosen?
     4) and joint encoding (row 6) both transfer --- and the
     full-record cross-encoder holds the highest minimum and wins
     the fielded pool (\S\ref{ssec:anti}). The
-    TF-IDF-pool cross-encoder cell is the re-trained
-    \texttt{trn-E5} reproduction (within 2\,pp,
-    Table~\ref{tab:robustness}); fielded cells include the gold
-    for evaluability (strict conditional and end-to-end in the
-    text); JURIS in the text and tables.}
+    name+state TF-IDF cell is the \texttt{trn-E5} reproduction
+    (within 2\,pp); fielded cells include the gold (strict
+    conditional and end-to-end in the text); JURIS in the text and
+    tables.}
   \Description{A six-row by three-column matrix of expected
     Hits@1, shaded light to dark by value. Rows: inverted
     token-set, name-feature GBM, GBM retrained on TF-IDF negatives,
@@ -921,12 +917,14 @@ they are exactly what the cross-encoder needs
 
 Four diagnostics; full tables ship with the released code.
 \textbf{B-cubed cluster F1}~\cite{binette2024} is 0.92 / 0.90 /
-0.91 for the cross-encoder vs.\ $\leq$0.48 for any bi-encoder
+0.91 for the name+state cross-encoder and 0.94 / 0.93 / 0.94 for
+the full-record one, vs.\ $\leq$0.48 for any bi-encoder
 (which collapse to one giant cluster at the tuned threshold);
 restricted to true clusters of size ${\geq}2$, a more honest
-0.85 / 0.84 / 0.88.
+0.85 / 0.84 / 0.88 (name+state).
 \textbf{Calibration and selective prediction.} ECE (10-bin) 0.20,
-Brier 0.18 --- over-confident in the high-score bin, and a
+Brier 0.18 for the name+state cross-encoder (0.13 / 0.12
+full-record) --- over-confident in the high-score bin; a
 train-fitted temperature does not fix it, so we report uncalibrated
 scores. A selective-prediction~\cite{geifman2017} sweep on the
 ensemble reaches Hits@1 0.93--0.98 at 20\% coverage and
@@ -976,8 +974,6 @@ modeling of corporate-hierarchy relationships.
     \toprule
     Method & p/s & sn-D & sn-S & tok \\
     \midrule
-    \texttt{exact\_name}             & 0.010 & 1.000 & 1.000 & 0.000 \\
-    \texttt{token\_set}              & 0.132 & 1.000 & 1.000 & 0.488 \\
     \texttt{tfidf\_char}             & 0.220 & 0.590 & 0.783 & 0.595 \\
     \texttt{sentence\_encoder}       & 0.841 & 0.912 & 0.960 & 0.905 \\
     \texttt{method\_full}            & 0.501 & 0.438 & 0.893 & 0.747 \\
@@ -995,15 +991,11 @@ modeling of corporate-hierarchy relationships.
 Of 100 sampled \texttt{method\_full} failures on held-out time:
 66 mixed/other, 19 where anchor and true successor share \emph{no}
 tokens, 8 substring-overlap distractors, 7 exact normalized-name
-collisions.
-
-The 19 ``no shared tokens'' cases are the hardest: no
-similarity-based representation can solve them --- they require
-world knowledge, graph context, or the full structured record
-(\S\ref{ssec:anti}). Figure~\ref{fig:task}'s anchor is
-representative: resolving ``DB'' to Deutsche Bank is external
-knowledge a 33M-parameter encoder is unlikely to memorize from
-name strings alone.
+collisions. The no-shared-token cases are the hardest for any
+name-input method --- they need world knowledge, graph context, or
+the full record (\S\ref{ssec:anti}); Figure~\ref{fig:task}'s
+anchor is representative, and resolving ``DB'' to Deutsche Bank
+from name strings alone is exactly what a 33M encoder cannot do.
 
 \paragraph{Residual JURIS failures cluster on sibling
 consolidation.} Of the 19 / 88 anchors the ensemble mis-ranks on
@@ -1043,7 +1035,11 @@ highest-leverage future work.
 \paragraph{Seed variance and a sliver of mislabeled hard negatives.}
 Over seeds 42/7/1337 the bi-encoder varies $\pm 0.5/0.4/1.6$\,pp
 and the enriched cross-encoder $\pm 0.5/0.3/1.6$\,pp
-(TIME/EVENT/JURIS) --- JURIS's spread tracks its small sample.
+(TIME/EVENT/JURIS). The new headline systems are stable too: the
+full-record GBM moves $\leq$0.5\,pp on-pool and $\leq$1.2\,pp
+fielded-conditional; the full-record cross-encoder spreads
+1.6--3.4\,pp and 3.3--3.9\,pp respectively, and its \emph{worst}
+seed still leads the GBM's best fielded by $\sim$8\,pp.
 Separately, $205/93{,}695 = 0.22\%$ of hard negatives appear in
 GLEIF's \texttt{SuccessorEntity}; dropping them moves results
 $\leq$0.2\,pp.
@@ -1059,7 +1055,14 @@ splits, but per-split absolutes carry those sample sizes.
 Eligibility itself conditions on a name-colliding neighbour
 existing, amplifying the construction (\S\ref{ssec:metrics}); a
 277-pair second-classifier check bounds detectable label noise at
-$<$2\% (\S\ref{ssec:diagnostics}). Splits are pair-level, not entity-disjoint
+$<$2\% (\S\ref{ssec:diagnostics}). Scoring the 244 released
+marquee pairs against \emph{random} same-country pools (no
+adversarial mining; script released) inverts the picture: token
+Jaccard scores 0.41 while the name+state cross-encoder falls below
+chance (0.07) --- models trained here inherit the pool's
+anti-similarity prior --- and the full-record models recover only
+partly (0.21--0.24). Rankers trained on mined pools should not be
+deployed on unmined ones. Splits are pair-level, not entity-disjoint
 (32\%\,/\,21\% of time-split test candidates\,/\,gold
 successors appear in training pairs; JURIS $<$1\%), though L-6
 Hits@1 shows no seen-entity advantage (unseen 0.62 vs.\ seen 0.57
@@ -1113,10 +1116,11 @@ first stage: even the best reranker is capped by 33--50\%
 retrieval recall, so candidate generation, not matching, is where
 lifecycle ER breaks today.
 
-\paragraph{Reproducibility.} Code, parsers, predictions, trained
-weights, and a datasheet: \url{https://github.com/chang-07/er-research}.
-Every non-LLM result reproduces from raw GLEIF in $\sim$2 hours on
-one MacBook.
+\paragraph{Reproducibility.} Code (MIT), data (CC-BY-4.0),
+parsers, predictions, trained weights, and a datasheet:
+\url{https://github.com/chang-07/er-research}; archival DOI on
+acceptance. Every non-LLM result reproduces from raw GLEIF in
+$\sim$2 hours on one MacBook.
 
 \bibliographystyle{ACM-Reference-Format}
 %\renewcommand{\bibfont}{\footnotesize} % removed: ACM forbids font-size overrides

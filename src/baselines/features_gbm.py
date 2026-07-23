@@ -194,6 +194,8 @@ def main():
                          "variant reported in the paper (Sec 5.4)")
     ap.add_argument("--out-suffix", default="",
                     help="appended to output stems, e.g. _trnv3")
+    ap.add_argument("--seed", type=int, default=42,
+                    help="random_state for HistGradientBoosting")
     ap.add_argument("--features", default="name", choices=["name", "full"],
                     help="'name' = the 12 released string+state features; "
                          "'full' adds address, status, LOU, category, "
@@ -241,7 +243,7 @@ def main():
     ytr = train_df["label"].values
 
     from sklearn.ensemble import HistGradientBoostingClassifier
-    clf = HistGradientBoostingClassifier(max_iter=300, random_state=42)
+    clf = HistGradientBoostingClassifier(max_iter=300, random_state=args.seed)
     clf.fit(Xtr, ytr)
     print("model fitted", file=sys.stderr)
 

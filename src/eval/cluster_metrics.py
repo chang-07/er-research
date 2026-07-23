@@ -123,7 +123,7 @@ def main():
     data = "data"
     pairs = pq.read_table(os.path.join(data, "pairs.parquet")).to_pandas()
 
-    METHODS = ["sentence_encoder", "method_v2_full", "method_v2_crossenc"]
+    METHODS = ["sentence_encoder", "method_v2_full", "method_v2_crossenc", "method_ce_fullrecord"]
     SPLITS = ["split_time", "split_event", "split_jurisdiction"]
 
     rows = []

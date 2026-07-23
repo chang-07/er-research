@@ -228,7 +228,7 @@ At paper submission / arXiv preprint posting.
 
 **Will the dataset be distributed under a copyright or other IP
 license?**
-Code: MIT or Apache 2.0 (TBD). Derived data: CC-BY-4.0 (GLEIF source is
+Code: MIT (see LICENSE). Derived data: CC-BY-4.0 (see LICENSE-DATA.md; GLEIF source is
 CC0; Wikidata is CC0; SEC is public domain; the curation, splits, and
 hard-negative selection are the contributed work).
 

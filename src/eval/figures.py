@@ -483,7 +483,7 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
     from matplotlib.patches import Rectangle
 
     cmap = plt.get_cmap("Blues")
-    fig, ax = plt.subplots(figsize=(3.4, 1.95))
+    fig, ax = plt.subplots(figsize=(3.4, 1.84))
     # Ramp top is held above the max cell so a single dark ink clears
     # 4.5:1 contrast on every cell (checked; worst case 4.6:1).
     for i in range(M.shape[0]):
