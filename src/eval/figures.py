@@ -398,11 +398,14 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
     ax.set_xticks(xg)
     ax.set_xticklabels(SHORT, fontsize=7)
     ax.set_ylabel("E[Hits@1]", fontsize=7)
-    ax.set_ylim(0, 1.02)
-    ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_ylim(0, 0.92)
+    ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8])
     ax.tick_params(labelsize=7)
-    ax.legend(fontsize=5.2, ncol=2, frameon=False, loc="upper left",
-              columnspacing=0.8, handlelength=1.4, handletextpad=0.4)
+    # Legend sits above the axes: inside, the reference hlines struck
+    # through the model labels.
+    ax.legend(fontsize=5.2, ncol=4, frameon=False, loc="lower center",
+              bbox_to_anchor=(0.5, 1.01), columnspacing=0.9,
+              handlelength=1.4, handletextpad=0.4)
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     for ext in ("pdf", "png"):
