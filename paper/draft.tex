@@ -9,6 +9,7 @@
 \settopmatter{printacmref=false}
 
 \usepackage{booktabs}
+\usepackage{needspace}
 \usepackage{tikz}
 \usetikzlibrary{positioning}
 \usepackage{pifont}
@@ -36,6 +37,13 @@
   con-cen-trat-ed
 }
 
+% snake_case identifiers (same_name_same_country, ...) are single
+% unbreakable tokens in a sigconf column and force maximally loose
+% lines around them. Permit a break after each underscore; no hyphen
+% is inserted, which is the usual convention for identifiers.
+\let\sylvesterunderscore\_
+\renewcommand{\_}{\sylvesterunderscore\allowbreak}
+
 \hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=blue}
 
 \title{Sylvester: A Benchmark and Method for Lifecycle-Aware
@@ -59,30 +67,28 @@ changed. Built from public GLEIF Level-1/2, SEC EDGAR, and Wikidata,
 it provides 125{,}519 labeled pairs over 3.3M entities across three
 held-out evaluation regimes (time, event type, jurisdiction). Our
 central finding: a 22M-parameter MiniLM cross-encoder fine-tuned on
-this data reaches 0.83--0.87 AUROC across all three held-out regimes
+this data reaches 0.82--0.87 AUROC across all three held-out regimes
 and 57--61\,\% Hits@1 on the time and event splits ($\pm$2.0--2.3\,pp
-95\,\% CI), 27--35\,pp above the strongest bi-encoder and, under a
+95\,\% CI), 24--35\,pp above the strongest bi-encoder across the
+three regimes and, under a
 uniform single-pair prompting protocol, above all six zero-shot LLMs
 tested (four organizations) on those splits.
 The lift concentrates on M\&A, absorption, and breakup events, where
 the post-event surface form retains little of the predecessor's name.
 
 Two caveats bound this result. The benchmark deliberately mines
-name-similar hard negatives against name-different positives; the
-near-chance AUROC of most similarity baselines on the time and event
-splits is a construction choice, not a claim about name matching in
-ER generally. An \emph{inverted}-similarity baseline exploits it for
-64--70\,\% Hits@1 (time/event) on the benchmark's own pools --- and a
-supervised feature-based matcher, the production default, learns it
-outright and posts the best on-pool scores we observe
-(0.73--0.84) --- yet both collapse on candidates from an unrelated
-miner and on candidates retrieved from the full universe, where,
-among the methods we test, only the cross-encoder stays strong. In a fielded
-retrieve-then-rerank simulation over the full 3.3M-entity universe,
-end-to-end Hits@1 falls to 15--28\,\% because bi-encoder Recall@20
-caps at 33--50\,\%; the bottleneck is the first stage, not the
-reranker. Results reproduce end-to-end from code, released splits,
-and weights on one MacBook in $\sim$2 hours.
+name-similar hard negatives against name-different positives, so the
+near-chance AUROC of most similarity baselines is a construction
+choice, not a claim about name matching in ER generally: an
+\emph{inverted}-similarity baseline exploits it for 64--70\,\%
+Hits@1, and a supervised feature matcher --- the production default
+--- posts the best on-pool Hits@1 we observe (0.73--0.84). Both
+collapse once candidates come from an unrelated miner or from the
+full universe, where only the cross-encoder stays strong; that
+separation is what the benchmark is for. And in a fielded
+retrieve-then-rerank simulation, end-to-end Hits@1 falls to
+15--28\,\% because bi-encoder Recall@20 caps at 33--50\,\% --- the
+bottleneck is the first stage, not the reranker.
 \end{abstract}
 
 \keywords{entity resolution, record linkage, financial entities,
@@ -177,9 +183,20 @@ architecture correctly identifies the true lifecycle successor?}
     \emph{exploiting} that construction; it collapses once the
     candidate pool shifts (Figure~\ref{fig:matrix}), while the
     cross-encoder holds.}
+  \Description{A diagram of one benchmark anchor and its candidate
+    pool. The anchor record, DB HR Solutions GmbH in Germany, carries
+    a completed mergers-and-acquisitions lifecycle event. Four
+    candidates are listed with name-similarity bars: three
+    name-similar wrong candidates score between 0.50 and 0.67, and
+    the true successor, Deutsche Bank Aktiengesellschaft, scores
+    zero. Below, a bar chart of held-out-time Hits@1 for four
+    methods: zero-shot E5-small 0.20, best zero-shot large language
+    model 0.35, supervised feature GBM 0.77, and this paper's
+    cross-encoder 0.61.}
   \label{fig:task}
 \end{figure}
 
+\needspace{3\baselineskip}
 \paragraph{Contributions.}
 \begin{enumerate}
   \item \textbf{An open benchmark} (\S\ref{sec:benchmark}):
@@ -241,15 +258,13 @@ We construct \textsc{Sylvester} entirely from open, persistently-licensed
 sources:
 
 \begin{itemize}
-  \item \textbf{GLEIF Level-1 LEI-CDF concatenated file.} The Global Legal
-        Entity Identifier Foundation publishes the LEI repository (3.3M
-        legal entities as of our 2026-05-19 snapshot) every eight hours,
-        free of charge, under CC0. Each \texttt{LEIRecord} includes the
-        entity's legal name, jurisdiction, legal form, addresses,
-        registration metadata, and crucially the
-        \texttt{LegalEntityEvents} container --- a dated, structured
-        log of lifecycle events --- and a \texttt{SuccessorEntity}
-        field explicitly linking predecessor to successor by LEI.
+  \item \textbf{GLEIF Level-1 LEI-CDF.} The LEI repository (3.3M
+        entities, 2026-05-19 snapshot), CC0, refreshed every eight
+        hours. Each \texttt{LEIRecord} carries legal name,
+        jurisdiction, legal form, addresses, registration metadata, a
+        dated \texttt{LegalEntityEvents} log, and a
+        \texttt{SuccessorEntity} field linking predecessor to
+        successor by LEI.
 
   \item \textbf{GLEIF Level-2 Relationship Records.} 473{,}839 typed
         relationships between LEIs (direct/ultimate consolidation, fund
@@ -261,8 +276,9 @@ sources:
         marquee supplement and cross-validation source.
 
   \item \textbf{SEC EDGAR.} \texttt{company\_tickers.json} (10{,}354
-        records) provides a name$\leftrightarrow$CIK crosswalk to
-        GLEIF for the U.S.\ public subset (3{,}334 confident links).
+        records) gives a name$\leftrightarrow$CIK crosswalk to GLEIF
+        for the U.S.\ public subset (3{,}334 confident links);
+        released with the benchmark, not used in the evaluation.
 \end{itemize}
 
 \subsection{Positive labels}
@@ -326,7 +342,8 @@ associated negatives) to one of three split regimes:
         rises $\sim$5$\times$ from 2022, when GLEIF tightened event
         reporting (distribution figure in the released repo), so the
         effective window is 2022--2026. Test composition:
-        3{,}448 positives, ${>}$2{,}000 anchors with at least one positive.
+        3{,}448 positives; 2{,}007 anchors are Hits@1-eligible
+        (\S\ref{ssec:metrics}).
   \item \textbf{Held-out event type:} train on M\&A,
         rename, legal-form change; test on spinoff, demerger,
         breakup, absorption. The test set is heavily dominated by
@@ -335,8 +352,8 @@ associated negatives) to one of three split regimes:
         statistically thin; per-event-type metrics within the split
         are reported in \S\ref{sec:experiments}.
   \item \textbf{Held-out jurisdiction:} train on US + GB + DE; test on
-        SG + JP + BR. Test composition: 88 anchors, 161 positives ---
-        the smallest split; its headline numbers carry
+        SG + JP + BR. Test composition: 161 anchors, 161 positives, of which
+        88 are Hits@1-eligible --- the smallest split; its headline numbers carry
         $\sim$$\pm$8.5\,pp 95\% bootstrap CIs (vs.\
         $\sim$$\pm$2.0--2.3\,pp on time/event).
 \end{itemize}
@@ -394,8 +411,8 @@ We fine-tune a second-stage cross-encoder that ingests
 $(\text{record}_A, \text{record}_B)$ as a single concatenated sequence
 and emits a single relevance logit. The backbone is the
 22M-parameter \texttt{ms-marco-\allowbreak MiniLM-L-6-v2} cross-encoder
-from HuggingFace; training uses the same positive set as the
-bi-encoder (including transitives) plus a 4:1 sample of E5-cosine hard
+from HuggingFace; training uses the same positives as
+\texttt{method\_v2\_full} (26{,}297 plus 1{,}372 transitives) plus a 4:1 sample of E5-cosine hard
 negatives per positive, with positives labeled $1.0$ and negatives
 $0.0$.
 Loss: standard binary cross-entropy on the logit. 2 epochs, batch 32, lr
@@ -412,39 +429,35 @@ that setting.
 
 \paragraph{Hard-negative re-mining.}
 \label{ssec:hard_negs}
-The initial token-overlap fallback (92\% of negs) injected enough label
-noise that explicit hard-negs slightly underperformed in-batch alone.
-Replacing it with E5-cosine top-20 same-country candidates yields
-652{,}764 total negs across 31{,}714 predecessors (vs.\ 253{,}733 before;
-coverage $\sim$20K $\to$ 31{,}714). Explicit hard negatives still do
-not beat in-batch alone for the bi-encoder
-(Table~\ref{tab:main_results}); the cleaner negatives matter as the
-cross-encoder's training signal, to large effect.
+Re-mining with E5-cosine top-20 same-country candidates, in place of
+the noisy token-overlap fallback, yields 652{,}764 negatives across
+31{,}714 predecessors (vs.\ 253{,}733 over $\sim$20K before). The
+cleaner negatives are what the cross-encoder trains on, to large
+effect; for the bi-encoder they change nothing
+(\S\ref{ssec:ablations}).
 
 \section{Experiments}
 \label{sec:experiments}
 
 \subsection{Baselines}
 
-We compare against four similarity baselines:
-\texttt{exact\_name} (normalized legal-name equality),
-\texttt{token\_set} (Jaccard over name tokens),
-\texttt{tfidf\_char} (char-3gram TF-IDF cosine), and
-\texttt{sentence\_encoder} (zero-shot E5-small-v2 cosine --- the
-method's backbone without fine-tuning); and one \emph{supervised}
-classical matcher, \texttt{features\_gbm}: gradient-boosted trees
-over twelve string-similarity and field-agreement features in the
+We compare against four similarity baselines ---
+\texttt{exact\_name} (normalized name equality), \texttt{token\_set}
+(token Jaccard), \texttt{tfidf\_char} (char-3gram TF-IDF cosine),
+and \texttt{sentence\_encoder} (zero-shot E5-small-v2, the method's
+backbone un-tuned) --- and one \emph{supervised} classical matcher,
+\texttt{features\_gbm}: gradient-boosted trees over twelve
+string-similarity and field-agreement features in the
 Fellegi--Sunter lineage~\cite{fellegisunter1969}, trained on the
-released pool's no-leakage rows (token-overlap-mined negatives) ---
-the production default. We also report six zero-shot
-LLM pairwise baselines under one protocol: one API call per pair,
+released pool's no-leakage rows; the production default. Six
+zero-shot LLMs run under one protocol: one call per pair,
 byte-identical prompts, a 0--10 integer rubric,
-\texttt{temperature=0} where exposed. Five API models spanning three
-organizations run at \emph{full} test coverage (26{,}564 pairs
-each): \textbf{Claude Haiku 4.5}, \textbf{Sonnet 4.6},
-\textbf{Opus 4.7}, \textbf{Gemini 3.1 Pro}, \textbf{DeepSeek V4 Pro}
-(thinking disabled); \textbf{gpt-oss-20b} (a fourth organization)
-runs locally on a 56/52/50-anchor sample
+\texttt{temperature=0} where exposed. Five API models from three
+organizations cover the full test set (26{,}564 pairs each) ---
+\textbf{Claude Haiku 4.5}, \textbf{Sonnet 4.6}, \textbf{Opus 4.7},
+\textbf{Gemini 3.1 Pro}, \textbf{DeepSeek V4 Pro} (thinking
+disabled) --- and \textbf{gpt-oss-20b} (a fourth organization) runs
+locally on a 56/52/50-anchor sample
 (Table~\ref{tab:main_results} footnotes).
 
 Paired permutation tests on per-anchor expected Hits@1 separate the
@@ -458,7 +471,7 @@ L-6$\times$L-12 ensemble beats Opus on TIME/EVENT ($p < 10^{-4}$);
 JURIS is a coin flip (0.784 vs.\ 0.767). Figure~\ref{fig:llm_panel}
 shows the panel: zero-shot quality is strikingly
 vendor-heterogeneous --- every Claude model outscores both other
-vendors' frontier models on every split, including Haiku, the
+API vendors' frontier models on every split, including Haiku, the
 cheapest model tested; \S\ref{sec:limitations} examines the
 elicitation-format confound behind part of this spread.
 
@@ -469,11 +482,18 @@ elicitation-format confound behind part of this spread.
     fine-tuned rerankers (lines): E[Hits@1], 95\% CIs. Every LLM
     sits far below the 22M cross-encoder on the two large splits; on
     JURIS ($n{=}88$) Opus exceeds the L-6 point estimate (n.s.).
-    Haiku outscores both other vendors' frontier models everywhere.}
+    Haiku outscores both other API vendors' frontier models everywhere.}
+  \Description{Grouped bar chart of expected Hits@1 with 95 percent
+    confidence intervals for six zero-shot large language models
+    across the three held-out splits, with horizontal reference lines
+    for the fine-tuned cross-encoder and the ensemble. Every language
+    model falls below the cross-encoder line on the time and event
+    splits; on the jurisdiction split Opus slightly exceeds it.}
   \label{fig:llm_panel}
 \end{figure}
 
 \subsection{Metrics}
+\label{ssec:metrics}
 
 We report per-anchor retrieval metrics (Hits@1, MRR) computed by
 ranking each anchor's candidates by score, and AUROC for the pair-wise
@@ -505,28 +525,23 @@ L-6$\times$L-12 ensemble.
 \begin{table*}[t]
   \centering
   \small
-  \caption{Test-set metrics on the three split regimes. Bold =
-    headline L-6 cross-encoder used in baseline comparisons; the larger
-    L-12 matches or beats it on every metric, and the L-6$\times$L-12
-    ensemble (Table~\ref{tab:v7}) is the best among methods that
-    survive pool shift (\S\ref{ssec:anti}). Random ranking
-    scores 0.18--0.22 Hits@1 (pools average 7.4--8.3 candidates).
-    The best fine-tuned bi-encoder lifts Hits@1
-    5--8\,pp over zero-shot E5-small; the cross-encoder adds a
-    further 24--35\,pp. $^{\S}$Supervised GBM over string+state
-    features: the strongest scores on this pool --- and it collapses
-    to near-chance on every other pool (\S\ref{ssec:anti}), the
-    benchmark's clearest gaming exhibit.
-    \texttt{anti-token\_set} ranks by \emph{negated} similarity ---
-    strong on this constructed pool, collapsing off-pool
-    (\S\ref{ssec:anti}). Protocol and metric definitions:
-    \S\ref{sec:experiments}. On JURIS, Opus 4.7's 0.767 exceeds the
-    L-6's 0.750 (n.s., $p{=}0.74$). See Table~\ref{tab:robustness}
-    for candidate-pool shift.
-    Hits@1 95\% CIs: $\pm$2.0 / $\pm$2.3 / $\pm$8.5\,pp.
-    $^{\dag}$Opus: no temperature param; Gemini (preview): thinking
-    not disableable, lowest level, Batch API.
-    $^{\ddag}$local; 56/52/50-anchor sample.}
+  \caption{Test-set metrics on the three split regimes, released
+    pool. Bold = headline L-6 cross-encoder used in baseline
+    comparisons; the L-12 matches or beats it throughout, and the
+    L-6$\times$L-12 ensemble (Table~\ref{tab:v7}) is the best method
+    that survives pool shift (\S\ref{ssec:anti}). Random ranking
+    scores 0.18--0.22 Hits@1 (pools average 7.4--8.3 candidates); the
+    best bi-encoder lifts Hits@1 5--8\,pp over zero-shot E5-small and
+    the cross-encoder a further 24--35\,pp. Hits@1 95\% CIs:
+    $\pm$2.0 / $\pm$2.3 / $\pm$8.5\,pp. Both exploit rows ---
+    $^{\S}$the supervised GBM over string$+$state features, and
+    \texttt{anti-token\_set}, which ranks by \emph{negated}
+    similarity --- are strongest here and fall to near-chance AUROC
+    on every other pool (\S\ref{ssec:anti},
+    Table~\ref{tab:robustness}). Protocol and metrics:
+    \S\ref{sec:experiments}. $^{\dag}$Opus: no temperature param;
+    Gemini (preview): thinking not disableable, lowest level, Batch
+    API. $^{\ddag}$local; 56/52/50-anchor sample.}
   \label{tab:main_results}
   \begin{tabular}{l rrr rrr rrr}
     \toprule
@@ -632,24 +647,35 @@ paired permutation; JURIS n.s.). Off-pool it collapses
 (Figure~\ref{fig:matrix}; JURIS: 0.36 on
 \textsc{Sylvester-TF-IDF}, 0.12 fielded; AUROC 0.54--0.57 and
 $\approx$0.5 respectively). Retraining the GBM on the harder
-TF-IDF negatives buys partial robustness
+TF-IDF negatives buys real but partial robustness
 (Figure~\ref{fig:matrix}, third row; JURIS: 0.69 cross-pool, 0.31
-fielded): negative \emph{quality} matters for feature models.
-It still trails the cross-encoder's fielded conditional by
-17--20\,pp --- and the cross-encoder never needed the harder pool
-to transfer.
+fielded): negative \emph{quality} matters for feature models, and
+on the TF-IDF pool itself this variant \emph{outscores} the
+cross-encoder (0.59\,/\,0.60 vs.\ 0.54\,/\,0.53) --- a feature
+model trained on a pool's own miner is hard to beat on that pool.
+What it does not buy is transfer: it drops to 0.53 on the released
+pool and 0.31--0.34 fielded, trailing the cross-encoder's fielded
+conditional by 17--20\,pp. Our claim is therefore about the
+\emph{minimum} across conditions, not a win in every cell: the
+cross-encoder is the only method here that never falls below 0.52,
+and it never needed a matched miner to get there.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
-surviving none of the condition changes we test. On
+surviving every pool change we test but one event type. On
 \textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
 0.21 Hits@1) while the cross-encoders hold 0.53--0.66
 (Table~\ref{tab:robustness}); on the
 fielded pool it drops to 9--18\,\% conditional Hits@1, a fraction
-of the cross-encoder's (\S\ref{ssec:robustness}); per event it is a
-one-way bet on acquirer-renaming --- 0.74 on M\&A but 0.11 on pure
-renames and 0.35 on legal-form changes, where the cross-encoder
-scores 0.90 and 0.85. It also loses pairwise AUROC to the
-cross-encoder on every split (Table~\ref{tab:main_results}).
+of the cross-encoder's (\S\ref{ssec:robustness}). Per event it is a
+one-way bet on acquirer-renaming, and there it is genuinely hard to
+beat: on the M\&A slice of the TIME split ($n{=}1{,}506$) it scores
+0.741, \emph{above} both the L-6 (0.625) and the ensemble (0.711).
+That is the one condition we test where an exploit is not merely
+competitive but best, and it is the event type the inversion is
+built for. The bet is one-way: the same heuristic scores 0.11 on
+pure renames and 0.35 on legal-form changes, where the
+cross-encoder scores 0.90 and 0.85, and it loses pairwise AUROC to
+the cross-encoder on every split (Table~\ref{tab:main_results}).
 Curated-pool Hits@1 alone can therefore be gamed; the
 cross-encoder's claim is being strong \emph{simultaneously} on the
 curated pool, the alternative-miner pool, the fielded pool, and
@@ -665,11 +691,14 @@ Aggregate Hits@1 hides large per-event-type variation.
 
 \paragraph{Held-out time.} Pure renames
 (\texttt{CHANGE\_LEGAL\_NAME}, $n=10$) are essentially solved by
-every method including zero-shot E5-small (0.90 Hits@1, no lift).
+every similarity-direction method including zero-shot E5-small
+(0.90 Hits@1, no lift); only the inverted exploit fails them
+(0.11, \S\ref{ssec:anti}).
 The headline gains come from the events where the post-event name
 comes from the acquirer and string similarity cannot bridge the
 gap: \texttt{MERGERS\_AND\_ACQUISITIONS} ($n=1{,}506$: 0.18
-zero-shot $\to$ 0.62 L-6 $\to$ 0.71 ensemble) and
+zero-shot $\to$ 0.62 L-6 $\to$ 0.71 ensemble; the inverted
+exploit reaches 0.74 here) and
 \texttt{ABSORPTION} ($n=461$: 0.24 $\to$ 0.54 $\to$ 0.65). The
 ensemble also more than doubles zero-shot on the small but
 operationally critical \texttt{BREAKUP} subset ($n=7$: 0.14 $\to$
@@ -727,12 +756,24 @@ negatives were chosen?
     (TIME\,/\,EVENT; fill $=$ mean) as the candidate pool shifts
     from the released pool to an unrelated miner's pool to
     retrieval from the full 3.3M-entity universe. Both exploits
-    collapse off-pool; retraining the GBM on harder negatives
-    recovers only part; the cross-encoder is the only method that
-    holds everywhere. Fielded cells include the gold for
-    evaluability --- strict retrieval-conditional and end-to-end
+    collapse off-pool. Retraining the GBM on TF-IDF-mined negatives
+    wins the pool matching its own miner (0.59\,/\,0.60, middle
+    column) but does not transfer; read rows by their
+    \emph{minimum}, where only the cross-encoder stays above 0.52. The TF-IDF-pool cross-encoder cell is the re-trained
+    \texttt{trn-E5} reproduction (Table~\ref{tab:robustness}), which
+    matches the headline model within 2\,pp on TIME/EVENT. Fielded
+    cells include the gold for evaluability --- strict retrieval-conditional and end-to-end
     numbers in the text; JURIS ($n{=}88$) in
     Tables~\ref{tab:main_results} and~\ref{tab:robustness}.}
+  \Description{A four-row by three-column matrix of expected Hits@1,
+    shaded light to dark by value. Rows are inverted token-set,
+    feature GBM, feature GBM retrained on TF-IDF-mined negatives, and
+    the cross-encoder. Columns are the released pool, the TF-IDF
+    pool, and the fielded 3.3-million-entity pool. The two exploit
+    rows fall from about 0.70 and 0.77 on the released pool to below
+    0.20 on the fielded pool; the retrained GBM recovers partially;
+    the cross-encoder row stays between 0.52 and 0.61 across all
+    three pools.}
   \label{fig:matrix}
 \end{figure}
 
@@ -827,29 +868,30 @@ End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6
 cross-encoder and 18--30\% for the ensemble. The drop from
 57--61\% in-distribution to 15--30\% deployment confirms rather
-than contradicts \S\ref{ssec:bi}: the bi-encoder's
+than contradicts \S\ref{ssec:ce}: the bi-encoder's
 fixed-embedding limit, which fails to retrieve lifecycle-spanning
 successors by cosine similarity, is exactly the bottleneck the
 anti-correlation analysis predicts.
 
 \subsection{Ablations}
+\label{ssec:ablations}
 
 \textbf{State features help modestly.} Ablating jurisdiction and
 legal form from the prompt costs 1.5--2\,pp Hits@1 on every split;
 the country token contributes most on held-out-jurisdiction, least
 on held-out-event-type.
 
-\textbf{Explicit hard negatives slightly \emph{hurt} in v1}
-(Table~\ref{tab:main_results}). \texttt{method\_no\_hard} edges out
-the v1 full model by 0.4--1.1\,pp Hits@1 on every split. The culprit
-is the \texttt{token\_overlap\_same\_country} class, 92\% of all
-mined v1 hard negatives and the lowest-precision class --- the fuzzy
-fallback injects label noise, and in-batch negatives from
-MultipleNegativesRanking are cleaner on their own. The v2 E5-cosine
-re-mining did not change this for the bi-encoder
-(Table~\ref{tab:main_results}) --- pushing back on the assumption
-that better explicit negatives always help contrastive training ---
-but supplied the cross-encoder's training signal (\S\ref{ssec:hard_negs}).
+\textbf{Explicit hard negatives slightly \emph{hurt} the
+bi-encoder} (Table~\ref{tab:main_results}):
+\texttt{method\_no\_hard} edges out the v1 full model by
+0.4--1.1\,pp Hits@1 on every split, and E5-cosine re-mining does not
+change that. The culprit is the
+\texttt{token\_overlap\_same\_country} class, 92\% of mined v1
+negatives and the lowest-precision one; in-batch negatives from
+MultipleNegativesRanking are cleaner on their own. So better
+explicit negatives do not always help contrastive training --- but
+they are exactly what the cross-encoder needs
+(\S\ref{ssec:hard_negs}).
 
 \subsection{Additional diagnostics}
 \label{ssec:diagnostics}
@@ -861,13 +903,12 @@ $\leq$0.47 for any bi-encoder (each of which collapses to one
 giant cluster at the tuned threshold). Restricting to records in
 true clusters of size $\geq 2$ --- 64\% of test records are
 singletons --- gives a more honest 0.85 / 0.84 / 0.88.
-\textbf{Calibration and selective prediction.} ECE (10-bin) is
-0.20, Brier 0.18: the model is over-confident in its high-score
-bin. A train-fitted temperature ($T\!\approx\!1.5$) trims Brier
-only marginally and does not reduce ECE, so we report
-uncalibrated scores. A selective-prediction~\cite{geifman2017} sweep on the ensemble hits
-Hits@1 $\geq 0.94$ at 20\% coverage and 0.87--0.97 at 50\%;
-high-precision users can threshold on the score (curve in repo).
+\textbf{Calibration and selective prediction.} ECE (10-bin) 0.20,
+Brier 0.18 --- over-confident in the high-score bin, and a
+train-fitted temperature does not fix it, so we report uncalibrated
+scores. A selective-prediction~\cite{geifman2017} sweep on the
+ensemble reaches Hits@1 $\geq 0.94$ at 20\% coverage and
+0.87--0.97 at 50\%, so high-precision users can threshold.
 \textbf{Cross-domain transfer.} Zero-shot Magellan
 Walmart-Amazon~\cite{magellan2016}:
 the cross-encoder \emph{loses} to its own zero-shot base encoder
@@ -886,48 +927,53 @@ future work.
 \subsection{Where each method is fooled}
 
 Table~\ref{tab:neg_class} reports per-negative-class mean score
-(higher = more often fooled). The fine-tuned bi-encoders roughly halve the
+(higher = more often fooled). The fine-tuned bi-encoders cut the
 zero-shot E5 baseline's score on \texttt{parent\_subsidiary} and
-\texttt{same\_name\_diff\_country} negatives, but
-\texttt{same\_name\_same\_country} remains a wall at $\approx$0.90 mean score: the bi-encoder
+\texttt{same\_name\_diff\_country} negatives by 40--52\%, but
+\texttt{same\_name\_same\_country} remains a wall at $\approx$0.89 mean score: the bi-encoder
 cannot reliably tell a real successor link from two distinct entities
 sharing an exact normalized name in the same country.
 
 The cross-encoder breaks that wall: \texttt{same\_name\_same\_country}
-mean score drops from 0.90 (best bi-encoder) to 0.45, and the
-L-6$\times$L-12 ensemble drops it further to 0.35. The ensemble also
-nearly solves \texttt{same\_name\_diff\_country} (0.92 zero-shot
-$\to$ 0.16) and \texttt{token\_overlap\_same\_country} (0.91 $\to$ 0.25). The one
-regression is \texttt{parent\_subsidiary} (0.45 bi-encoder $\to$ 0.70
-L-6 cross-encoder $\to$ 0.78 ensemble): the joint encoder occasionally
+mean score drops from 0.89 (best bi-encoder) to 0.43, and the
+L-6$\times$L-12 ensemble drops it further to 0.36. The ensemble also
+nearly solves \texttt{same\_name\_diff\_country} (0.91 zero-shot
+$\to$ 0.17) and \texttt{token\_overlap\_same\_country} (0.91 $\to$ 0.28). The one
+regression is \texttt{parent\_subsidiary} (0.50 bi-encoder $\to$ 0.67
+L-6 cross-encoder $\to$ 0.75 ensemble): the joint encoder occasionally
 treats parent--subsidiary edges as positive lifecycle bridges, and the
 ensemble's prompt enrichment that injects GLEIF L2 parent/child names makes
-the regression \emph{worse}, not better. With only 221 examples in
-this class the headline impact is small, but the trend points at a
-clear direction: explicit multi-class modeling of corporate-hierarchy
-relationships.
+the regression \emph{worse}, not better. With only 99 held-out
+examples in this class the headline impact is small, but the trend
+points at a clear direction: explicit multi-class modeling of
+corporate-hierarchy relationships.
 
 \begin{table}[t]
   \centering
   \scriptsize
-  \caption{Negative-class mean score (lower is better). \emph{p/s}
-    = parent/subsidiary, \emph{sn-D} = same-name/diff-country,
-    \emph{sn-S} = same-name/same-country, \emph{tok} = token-overlap same-country. The ensemble
-    improves three classes but \emph{worsens} \emph{p/s} ($0.70 \to
-    0.78$) --- prompt-injected L2 context makes parent/subsidiary
-    pairs look more similar, not less.}
+  \caption{Negative-class mean score (lower is better) on negatives
+    \emph{never seen in training} (test in $\geq$1 regime; $n =$ 99 /
+    1{,}398 / 1{,}096 / 20{,}759), so supervised and zero-shot rows
+    are scored out-of-sample alike. \emph{p/s} = parent/subsidiary,
+    \emph{sn-D} = same-name/diff-country, \emph{sn-S} =
+    same-name/same-country, \emph{tok} = token-overlap same-country.
+    The ensemble improves three classes but \emph{worsens}
+    \emph{p/s} ($0.67 \to 0.75$) --- prompt-injected L2 context makes
+    parent/subsidiary pairs look more similar, not less. Scores are
+    on each method's own scale; compare down columns, not across
+    rows; bold = lowest among the learned methods.}
   \label{tab:neg_class}
   \begin{tabular}{l rrrr}
     \toprule
     Method & p/s & sn-D & sn-S & tok \\
     \midrule
-    \texttt{exact\_name}             & 0.013 & 1.000 & 1.000 & 0.000 \\
-    \texttt{token\_set}              & 0.144 & 1.000 & 1.000 & 0.486 \\
-    \texttt{tfidf\_char}             & 0.227 & 0.630 & 0.804 & 0.590 \\
-    \texttt{sentence\_encoder}       & 0.834 & 0.921 & 0.963 & 0.905 \\
-    \texttt{method\_full}            & 0.454 & 0.454 & 0.899 & 0.736 \\
-    Cross-encoder (L-6, 22M)        & 0.696 & 0.237 & 0.452 & 0.278 \\
-    \textbf{Ensemble (L-6$\times$L-12)} & 0.781 & \textbf{0.160} & \textbf{0.345} & \textbf{0.254} \\
+    \texttt{exact\_name}             & 0.010 & 1.000 & 1.000 & 0.000 \\
+    \texttt{token\_set}              & 0.132 & 1.000 & 1.000 & 0.488 \\
+    \texttt{tfidf\_char}             & 0.220 & 0.590 & 0.783 & 0.595 \\
+    \texttt{sentence\_encoder}       & 0.841 & 0.912 & 0.960 & 0.905 \\
+    \texttt{method\_full}            & 0.501 & 0.438 & 0.893 & 0.747 \\
+    Cross-encoder (L-6, 22M)        & 0.668 & 0.201 & 0.432 & 0.311 \\
+    \textbf{Ensemble (L-6$\times$L-12)} & 0.748 & \textbf{0.166} & \textbf{0.358} & \textbf{0.284} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -965,14 +1011,12 @@ is not the answer.
 \subsection{Why this matters in practice}
 
 The benchmark targets a failure mode common across financial
-infrastructure. Stripe trains transaction and merchant embeddings at
-scale~\cite{stripe_ai}; accounting agents deduplicate vendors and
-invoices; entity backbones underpin market-data and compliance
-stacks. Each such pipeline faces the lifecycle-ER gap after a
-merger, rebrand, or absorption.
-\textsc{Sylvester}
-gives practitioners a public benchmark to evaluate whether their
-system handles it.
+infrastructure: transaction and merchant embeddings at
+scale~\cite{stripe_ai}, vendor and invoice deduplication, and the
+entity backbones under market-data and compliance stacks all face
+the lifecycle-ER gap after a merger, rebrand, or absorption.
+\textsc{Sylvester} lets practitioners test whether their system
+handles it.
 
 
 \section{Limitations and Future Work}
@@ -985,66 +1029,63 @@ mining name-similar negatives against name-different positives
 universal claim about name similarity in ER.
 
 \paragraph{In-distribution headline overstates deployment.}
-The headline cross-encoder Hits@1 (57--61\,\% on time/event;
-75\,\% on JURIS, $n=88$, directional) is on the released
-token-overlap-mined candidate pool; on a fielded retrieve-then-rerank pipeline that
-draws candidates from the full 3.3M-entity GLEIF universe
-(\S\ref{ssec:robustness}), end-to-end Hits@1 falls to 15--28\,\%
-(L-6 cross-encoder) / 18--30\,\% (ensemble). The cause is upstream:
-bi-encoder Recall@20 is 33--50\,\%, so the reranker often never sees
-the true successor. The miner-robustness experiment shows the
-cross-encoder gain is partly pool-specific but survives miner shift
-($+13$ to $+39$\,pp cross-pool; Figure~\ref{fig:matrix}). A stronger first-stage retriever (hybrid sparse--dense, or a
-pre-filtered cross-encoder shortlist) is the highest-leverage
-future work.
+The headline Hits@1 is measured on the released pool; end-to-end on
+the fielded pipeline it falls to 15--30\,\%
+(\S\ref{ssec:robustness}) because bi-encoder Recall@20 is
+33--50\,\%, so the reranker often never sees the true successor.
+The gain is partly pool-specific but survives miner shift ($+13$ to
+$+39$\,pp; Table~\ref{tab:robustness}). A stronger first stage
+(hybrid sparse--dense, or a pre-filtered shortlist) is the
+highest-leverage future work.
 
 \paragraph{Seed variance and a sliver of mislabeled hard negatives.}
-Bi-encoder Hits@1 over seeds 42/7/1337 was $0.251 \pm 0.005$
-(TIME), $0.291 \pm 0.004$ (EVENT), $0.523 \pm 0.016$ (JURIS);
-TIME/EVENT are stable, JURIS varies $\pm$1.6\,pp consistent with
-its small test sample ($n = 88$); the enriched cross-encoder over
-the same seeds varies $\pm 0.5 / \pm 0.3 / \pm 1.6$\,pp.
-Separately, $205/93{,}695 = 0.22\%$ of hard negatives
-appear in GLEIF's \texttt{SuccessorEntity}; the cleaned variant
-\texttt{pairs\_clean.parquet} drops them with $\leq$0.2\,pp impact.
+Over seeds 42/7/1337 the bi-encoder varies $\pm 0.5/0.4/1.6$\,pp
+and the enriched cross-encoder $\pm 0.5/0.3/1.6$\,pp
+(TIME/EVENT/JURIS) --- JURIS's spread tracks its small sample.
+Separately, $205/93{,}695 = 0.22\%$ of hard negatives appear in
+GLEIF's \texttt{SuccessorEntity}; dropping them moves results
+$\leq$0.2\,pp.
 
 \paragraph{Survivorship bias and thin slices.} GLEIF
 \texttt{SuccessorEntity} is voluntarily populated, biasing positives
-toward well-counseled regulated entities. The held-out-event test set
-is 94.5\% absorption (the label oversells event-type generality), and
-the held-out-jurisdiction test has only 88 anchors ($\pm$8.5\,pp
-Hits@1 CI). The cross-encoder gain clears the CI band on all three
-splits, but per-split absolute numbers should be read with those
-sample sizes in mind. A 277-pair second-classifier check
+toward well-counseled regulated entities; of 302 marquee Wikidata
+M\&A pairs, 283 are absent from it (\S\ref{ssec:splits}), so
+high-profile events are under-represented. The held-out-event test
+set is 94.5\% absorption and the jurisdiction test has 88 eligible
+anchors ($\pm$8.5\,pp CI): gains clear the CI band on all three
+splits, but per-split absolutes should be read with those sample
+sizes in mind. Eligibility itself conditions on the predecessor
+having a name-colliding neighbour, which amplifies the construction
+(\S\ref{ssec:metrics}). A 277-pair second-classifier check
 (\S\ref{ssec:diagnostics}) bounds detectable label noise at $<$2\%
-on the confident subset; human review would strengthen the bound. Splits are pair-level, not entity-disjoint
+on the confident subset. Splits are pair-level, not entity-disjoint
 (32\,\%\,/\,21\,\% of time-split test candidates\,/\,gold
 successors appear in training pairs; JURIS $<$1\,\%), though L-6
 Hits@1 shows no seen-entity advantage (unseen 0.62 vs.\ seen 0.57
 TIME; 0.56 vs.\ 0.58 EVENT, both n.s.); entity-disjoint splits are
 a stricter future design.
 
-\paragraph{LLM baselines: what the discrete scale hides.} Discrete
-elicitation caps what ranking can express: models forfeit
-13--48\,pp Hits@1 to within-pool score ties. Gemini 3.1 Pro scores
-every candidate in a pool \emph{identically} on 55\% of TIME anchors
---- oracle tie-breaking would give it 0.72 vs.\ 0.23 measured ---
-while Sonnet/Opus collapse only $\sim$5\% of pools; the
-cross-encoder's continuous scores pay no tie tax. Finer elicitation
-(wider scales, log-probs, comparative tie-breaks) may recover part
-of this. Prompt format also moves results materially (batched
-multi-candidate scoring: Sonnet 0.43 TIME Hits@1 vs.\ 0.30
-single-pair), and cross-vendor gaps may partly reflect differential
-training exposure to GLEIF-derived text. The cost gap stands:
-0.64\,ms/pair after one-time training vs.\ $\sim$1\,s/pair metered.
+\paragraph{LLM baselines: what the discrete scale hides.} A 0--10
+rubric caps what ranking can express: models forfeit 13--48\,pp
+Hits@1 to within-pool ties, and Gemini 3.1 Pro scores every
+candidate identically on 55\% of TIME anchors --- oracle
+tie-breaking would give it 0.72 vs.\ 0.23 measured, above our L-6
+--- while Sonnet/Opus collapse only $\sim$5\% of pools and the
+cross-encoder's continuous scores pay no tie tax. Prompt format
+moves results as much (batched Sonnet 0.43 TIME vs.\ 0.30
+single-pair). Our panel therefore bounds what this elicitation
+format extracts, not what these models can do: finer scales,
+log-probs, or comparative tie-breaks would likely raise them, and
+cross-vendor gaps may partly reflect exposure to GLEIF-derived
+text.
 
-\paragraph{The model is specialized, and parent/subsidiary is a thin slice.} The cross-encoder underperforms zero-shot E5-small
-on out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
-\S\ref{ssec:diagnostics}); the fine-tuned representation is
-specialized to lifecycle ER, not generic. The parent/subsidiary
-negative class shows a regression (mean score 0.45 $\to$ 0.70 from
-bi-encoder to L-6 cross-encoder, worsening to 0.78 in the ensemble), but with
-only 221 negatives the effect is statistically weak; explicit
+\paragraph{The model is specialized, and parent/subsidiary is a
+thin slice.} The cross-encoder underperforms zero-shot E5-small on
+out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
+\S\ref{ssec:diagnostics}): the representation is specialized to
+lifecycle ER, not generic. Parent/subsidiary negatives regress
+(0.50 $\to$ 0.67 $\to$ 0.75 across bi-encoder, L-6, and ensemble),
+though at 99 held-out examples the effect is weak; explicit
 multi-class modeling of related-but-distinct entities is clear
 future work.
 
@@ -1053,21 +1094,23 @@ future work.
 \textsc{Sylvester} is an open benchmark for lifecycle-aware
 entity resolution on financial entities, built entirely from
 public GLEIF, SEC EDGAR, and Wikidata data. Its central result is
-deliberately two-sided. On the curated pools the construction can
+deliberately two-sided. On the released pool the construction can
 be gamed: inverted name similarity and a supervised feature
-matcher post the best on-pool scores in the paper. Under every
-condition change we test --- an unrelated candidate miner, the
-fielded 3.3M-entity universe, each event type with a usable sample
---- those exploits collapse, and a 22M-parameter cross-encoder is
-the only method that stays strong throughout, with the fielded
-pipeline bottlenecked by first-stage retrieval rather than
-reranking. The benchmark's value is exactly that discriminating
-power: it separates methods that learn the pool from methods that
-learn the task.
+matcher post the best on-pool scores in the paper. Shift the
+candidate pool --- an unrelated miner, or retrieval from the full
+3.3M-entity universe --- and those exploits collapse, while a
+22M-parameter cross-encoder is the only method whose \emph{worst}
+condition stays strong; the fielded pipeline is then bottlenecked
+by first-stage retrieval rather than reranking. Each exploit still
+wins the one slice built to favour it (\S\ref{ssec:anti}), which is
+the point: the benchmark's value is its discriminating power,
+separating methods that learn the pool from methods that learn the
+task.
 
-\paragraph{Reproducibility.} Code, parsers, predictions, and trained
-weights: \url{https://github.com/chang-07/er-research}; end-to-end repro
-from raw GLEIF $\sim$2 hours on one MacBook.
+\paragraph{Reproducibility.} Code, parsers, predictions, trained
+weights, and a datasheet: \url{https://github.com/chang-07/er-research}.
+Every non-LLM result reproduces from raw GLEIF in $\sim$2 hours on
+one MacBook.
 
 \bibliographystyle{ACM-Reference-Format}
 %\renewcommand{\bibfont}{\footnotesize} % removed: ACM forbids font-size overrides

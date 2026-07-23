@@ -2,20 +2,32 @@
 
 Outputs PDFs (vector, for LaTeX) and PNG previews under paper/figures/.
 
-Figures:
-  fig1_event_year_histogram.pdf   stacked area of completed lifecycle events
-                                   per year, 2014-2026, by top event types
-  fig2_main_results.pdf           grouped bar chart: Hits@1 across baselines
-                                   and method variants for the 3 split regimes
-  fig3_per_event_type.pdf         Hits@1 broken down by anchor event type for
-                                   the four most important baselines + method
+Figures currently used by the paper:
+  fig8_llm_panel.pdf              zero-shot LLM panel E[Hits@1] per split vs.
+                                   fine-tuned reranker reference lines (Fig 2)
+  fig9_generalization_matrix.pdf  methods x evaluation-pool matrix (Fig 3)
+
+Generated but not placed in the 8-page draft (kept for the repo/appendix):
+  fig1_event_year_histogram.pdf   completed lifecycle events per year by type
+  fig2_main_results.pdf           grouped bars: Hits@1 across all methods
+  fig3_per_event_type.pdf         Hits@1 by anchor event type
+  fig6_cumulative_gains.pdf, fig7_selective_prediction.pdf
+
+All metrics come from ranking.per_anchor_expected (expectation-based tie
+breaking), so figures and tables cannot drift apart.
 """
 import os
 import sys
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+# ACM (and most venues' PDF checkers) reject Type 3 fonts; matplotlib
+# emits them by default. 42 = embed TrueType instead.
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "paper", "figures")
 
@@ -364,7 +376,7 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
             los[(stem, s)] = np.percentile(boots, 2.5)
             his[(stem, s)] = np.percentile(boots, 97.5)
 
-    fig, ax = plt.subplots(figsize=(3.5, 1.55))
+    fig, ax = plt.subplots(figsize=(3.5, 1.42))
     n = len(MODELS)
     width = 0.13
     xg = np.arange(len(SPLITS))
@@ -454,24 +466,29 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
             E[i, j] = h1(pools[pk], files[pk], neg, "split_event")
     M = (T + E) / 2.0
 
-    fig, ax = plt.subplots(figsize=(3.4, 1.58))
-    im = ax.imshow(M, cmap="Blues", vmin=0.0, vmax=0.85, aspect="auto")
+    # Cells are drawn as rectangle patches rather than imshow: imshow
+    # rasterizes into the PDF, which prints soft at this size.
+    from matplotlib.patches import Rectangle
+
+    cmap = plt.get_cmap("Blues")
+    fig, ax = plt.subplots(figsize=(3.4, 1.44))
+    # Ramp top is held above the max cell so a single dark ink clears
+    # 4.5:1 contrast on every cell (checked; worst case 4.6:1).
     for i in range(M.shape[0]):
         for j in range(M.shape[1]):
-            ink = "white" if M[i, j] > 0.45 else "#1a1a1a"
+            ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1,
+                                   facecolor=cmap(M[i, j] / 1.15),
+                                   edgecolor="white", linewidth=1.6))
             ax.text(j, i, f"{T[i, j]:.2f} / {E[i, j]:.2f}",
                     ha="center", va="center", fontsize=7.4,
-                    fontweight="bold", color=ink)
-    ax.set_xticks(range(len(COLS)),
-                  [c[1] for c in COLS], fontsize=6.8)
-    ax.set_yticks(range(len(ROWS)),
-                  [r[0] for r in ROWS], fontsize=6.8)
+                    fontweight="bold", color="#1a1a1a")
+    ax.set_xlim(-0.5, len(COLS) - 0.5)
+    ax.set_ylim(len(ROWS) - 0.5, -0.5)
+    ax.set_xticks(range(len(COLS)), [c[1] for c in COLS], fontsize=6.8)
+    ax.set_yticks(range(len(ROWS)), [r[0] for r in ROWS], fontsize=6.8)
     ax.tick_params(which="both", length=0)
     for s in ax.spines.values():
         s.set_visible(False)
-    ax.set_xticks(np.arange(-.5, len(COLS)), minor=True)
-    ax.set_yticks(np.arange(-.5, len(ROWS)), minor=True)
-    ax.grid(which="minor", color="white", linewidth=2.2)
     fig.tight_layout(pad=0.15)
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(out_dir,

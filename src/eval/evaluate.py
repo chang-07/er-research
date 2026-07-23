@@ -164,8 +164,15 @@ def main():
                 {"baseline": baseline, "split": regime, "metric": "n_pos_test",  "value": int(y_test.sum())},
             ])
 
-        # Per-negative-class breakdown (on entire dataset, label=0 only)
-        negs = df[df["label"] == 0]
+        # Per-negative-class breakdown, label=0 only, restricted to rows
+        # NEVER seen in training (test in at least one regime — training
+        # uses rows that are non-test in all three). Pooling over the whole
+        # dataset would score supervised models on their own training
+        # negatives while zero-shot rows stayed out-of-sample.
+        held_out = ((df["split_time"] == "test")
+                    | (df["split_event"] == "test")
+                    | (df["split_jurisdiction"] == "test"))
+        negs = df[(df["label"] == 0) & held_out]
         grp = negs.groupby("source")["score"].agg(["mean", "count"]).reset_index()
         for _, row in grp.iterrows():
             neg_rows.append({
