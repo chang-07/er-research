@@ -3,10 +3,8 @@
 Outputs PDFs (vector, for LaTeX) and PNG previews under paper/figures/.
 
 Figures currently used by the paper:
-  fig9_generalization_matrix.pdf  methods x evaluation-pool matrix (Fig 2)
-
-Generated, in-repo only (cut from the 8-page draft for space):
-  fig8_llm_panel.pdf              zero-shot LLM panel E[Hits@1] per split
+  fig8_llm_panel.pdf              zero-shot LLM panel E[Hits@1] per split (Fig 2)
+  fig9_generalization_matrix.pdf  methods x evaluation-pool matrix (Fig 3)
 
 Generated but not placed in the 8-page draft (kept for the repo/appendix):
   fig1_event_year_histogram.pdf   completed lifecycle events per year by type
