@@ -3,9 +3,10 @@
 Outputs PDFs (vector, for LaTeX) and PNG previews under paper/figures/.
 
 Figures currently used by the paper:
-  fig8_llm_panel.pdf              zero-shot LLM panel E[Hits@1] per split vs.
-                                   fine-tuned reranker reference lines (Fig 2)
-  fig9_generalization_matrix.pdf  methods x evaluation-pool matrix (Fig 3)
+  fig9_generalization_matrix.pdf  methods x evaluation-pool matrix (Fig 2)
+
+Generated, in-repo only (cut from the 8-page draft for space):
+  fig8_llm_panel.pdf              zero-shot LLM panel E[Hits@1] per split
 
 Generated but not placed in the 8-page draft (kept for the repo/appendix):
   fig1_event_year_histogram.pdf   completed lifecycle events per year by type
@@ -461,6 +462,10 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
          {"bench": "method_v2_crossenc.parquet",
           "v3": "method_v2_crossenc_repro_on_pairs_v3.parquet",
           "fld": "method_v2_crossenc_fielded.parquet"}),
+        ("cross-encoder L-6,\nfull record (E5 negs)", False,
+         {"bench": "method_ce_fullrecord.parquet",
+          "v3": "method_ce_fullrecord_on_pairs_v3.parquet",
+          "fld": "method_ce_fullrecord_on_pairs_fielded.parquet"}),
     ]
     COLS = [("bench", "released pool"), ("v3", "TF-IDF pool"),
             ("fld", "fielded (3.3M)")]
@@ -478,7 +483,7 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
     from matplotlib.patches import Rectangle
 
     cmap = plt.get_cmap("Blues")
-    fig, ax = plt.subplots(figsize=(3.4, 1.66))
+    fig, ax = plt.subplots(figsize=(3.4, 1.95))
     # Ramp top is held above the max cell so a single dark ink clears
     # 4.5:1 contrast on every cell (checked; worst case 4.6:1).
     for i in range(M.shape[0]):

@@ -82,16 +82,19 @@ time/event ($\pm$2.0--2.3\,pp 95\% CI), 24--35\,pp above the
 strongest bi-encoder, and, under a uniform single-pair protocol,
 above all six zero-shot LLMs tested (four organizations) on the
 two large splits.
-But the ceiling is not architectural: a gradient-boosted matcher
+But the binding constraint is the input, not the architecture:
 given the \emph{full} structured registry record (liveness,
 addresses, previous names, dates --- fields no name-only method
-sees) transfers across every pool as well, beating the
-cross-encoder on-pool by 18\,pp ($p<10^{-4}$), within noise of
-the best neural system on retrieved candidates, at negligible
-inference cost.
-The lifecycle signal lives in the record, not the name.
-End-to-end, every reranker is capped at 15--33\% Hits@1 by
-33--50\% retrieval recall: the bottleneck is retrieval.
+sees), a gradient-boosted matcher transfers across every pool,
+beating the name-input cross-encoder on-pool by 18\,pp
+($p<10^{-4}$) at negligible cost --- and a cross-encoder over the
+same record ties the trees on curated pools, then wins where
+deployment lives: $+$12\,pp retrieval-conditional on the fielded
+universe ($p<10^{-4}$), the best in the paper. The lifecycle
+signal is in the record; joint encoding keeps most of it under
+pool shift. End-to-end even the best system reaches 21--39\%
+Hits@1 because Recall@20 caps at 33--50\%: the bottleneck is
+retrieval.
 \end{abstract}
 
 \keywords{entity resolution, record linkage, financial entities,
@@ -224,17 +227,19 @@ what identifies the true lifecycle successor?}
         and absorption). But given the \emph{full} structured
         record, a gradient-boosted matcher transfers everywhere too
         and beats the cross-encoder on-pool by 18\,pp
-        ($p<10^{-4}$; \S\ref{ssec:anti}): the transferable signal is in the
-        record's structured fields, not the name --- and no name-only
-        method, neural or not, can recover it.
+        ($p<10^{-4}$), while a cross-encoder over the same record
+        wins the fielded pool by 12\,pp (\S\ref{ssec:anti}). The
+        transferable signal is in the record's structured fields
+        --- no name-only method can recover it --- and joint
+        encoding keeps the most of it under shift.
 
   \item \textbf{The deployment bottleneck is retrieval, not
         reranking} (\S\ref{ssec:robustness}): fielded over 3.3M
-        entities, end-to-end Hits@1 falls to 15--33\% because
+        entities, end-to-end Hits@1 falls to 15--39\% because
         Recall@20 caps at 33--50\%, consistent with the blocking
         literature's focus on candidate
         generation~\cite{uniblocker2024}. The rerankers themselves
-        are effective (46--66\% conditional Hits@1); the system
+        are effective (46--78\% conditional Hits@1); the system
         breaks at the first stage.
 \end{enumerate}
 
@@ -251,9 +256,8 @@ GraLMatch~\cite{gralmatch2025}) are now standard, and the
 OpenSanctions Pairs corpus~\cite{opensanctions2026} benchmarks LLM
 matching at 755K pairs --- all under a \emph{snapshot} framing,
 not lifecycle-spanning matches. Temporal record
-linkage~\cite{temporalrl2011} pioneered matching records of
-entities whose attributes drift over time, but predates both modern
-encoders and open registry infrastructure.
+linkage~\cite{temporalrl2011} pioneered matching drifting
+entities, pre-dating modern encoders and open registries.
 AnyMatch~\cite{anymatch2024} shows small fine-tuned models rival
 LLM matchers at a fraction of the cost, and WDC
 Products~\cite{wdcproducts2024} studies how hard-negative
@@ -484,29 +488,12 @@ JURIS split it leads Haiku, Gemini, and DeepSeek ($p\leq 0.018$),
 is within noise of Sonnet ($p=0.14$), and is indistinguishable
 from Opus 4.7, which holds the higher point estimate (0.767 vs.\
 0.750, $p=0.74$); the ensemble beats Opus on TIME/EVENT
-($p<10^{-4}$), JURIS a coin flip. Figure~\ref{fig:llm_panel}
-shows the panel: quality is strikingly vendor-heterogeneous ---
+($p<10^{-4}$), JURIS a coin flip. The panel
+(Table~\ref{tab:main_results}) is strikingly vendor-heterogeneous ---
 every Claude model outscores both other API vendors' frontier
 models on every split, including Haiku, the cheapest tested;
 \S\ref{sec:limitations} examines the elicitation-format confound
 behind part of this spread.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/fig8_llm_panel.pdf}
-  \caption{Zero-shot LLM panel (uniform single-pair protocol) vs.\
-    fine-tuned rerankers (lines): E[Hits@1], 95\% CIs. Every LLM
-    sits far below the 22M cross-encoder on the two large splits; on
-    JURIS ($n{=}88$) Opus exceeds the L-6 point estimate (n.s.).
-    Haiku outscores both other API vendors' frontier models everywhere.}
-  \Description{Grouped bar chart of expected Hits@1 with 95 percent
-    confidence intervals for six zero-shot large language models
-    across the three held-out splits, with horizontal reference lines
-    for the fine-tuned cross-encoder and the ensemble. Every language
-    model falls below the cross-encoder line on the time and event
-    splits; on the jurisdiction split Opus slightly exceeds it.}
-  \label{fig:llm_panel}
-\end{figure}
 
 \subsection{Metrics}
 \label{ssec:metrics}
@@ -556,7 +543,9 @@ L-6$\times$L-12 ensemble.
     \texttt{features\_gbm-full},
     trained on the cross-encoder's negatives with the full
     structured record, transfers across all three pools
-    (Figure~\ref{fig:matrix}). Protocol and metrics:
+    (Figure~\ref{fig:matrix}), as does the full-record
+    cross-encoder --- the strongest fielded system in the paper
+    (\S\ref{ssec:anti}). Protocol and metrics:
     \S\ref{sec:experiments}. $^{\dag}$Opus: no temperature param;
     Gemini (preview): thinking not disableable, lowest level, Batch
     API. $^{\ddag}$local; 56/52/50-anchor sample.}
@@ -589,6 +578,7 @@ L-6$\times$L-12 ensemble.
     \midrule
     \textbf{Cross-encoder (L-6, 22M)} & \textbf{0.836} & \textbf{0.607} & \textbf{0.725} & \textbf{0.825} & \textbf{0.569} & \textbf{0.701} & \textbf{0.868} & \textbf{0.750} & \textbf{0.818} \\
     Cross-encoder (L-12, 33M)      & 0.844 & 0.631 & 0.742 & 0.836 & 0.598 & 0.724 & 0.870 & 0.750 & 0.823 \\
+    Cross-encoder (L-6, full record)$^{\S}$ & 0.930 & 0.761 & 0.845 & 0.915 & 0.708 & 0.808 & 0.954 & 0.875 & 0.916 \\
     \bottomrule
   \end{tabular}
 \end{table*}
@@ -684,12 +674,24 @@ liveness/registration-status features costs 4--7\,pp and transfer
 survives (0.72\,/\,0.72 on TF-IDF; 0.43\,/\,0.47
 fielded-conditional, at parity with the L-6).
 
-The cross-encoder's claim accordingly narrows to its input class:
-among methods that see only names and registration state --- every
-LLM, bi-encoder, string baseline, and name-feature GBM --- it is
-the only one whose worst pool stays strong. The transferable
-signal lives in the structured record, and no name-only method,
-joint attention included, can recover fields it was never given.
+Completing the grid: a cross-encoder trained with the identical
+protocol but a serialized \emph{full-record} prompt (the same
+fields the GBM sees) lands 2--5\,pp behind the trees on-pool
+(0.76\,/\,0.71, $p\leq0.018$), ties them on TF-IDF
+(0.77\,/\,0.73), and pulls decisively ahead where deployment
+lives: 0.64\,/\,0.66\,/\,0.78 fielded retrieval-conditional,
+$+$12\,pp over the GBM and $+$9--12\,pp over the ensemble (all
+$p<10^{-4}$); best end-to-end in the paper (21--39\%).
+
+The claims accordingly split by input class and by pool. Among
+name-input methods --- every LLM, bi-encoder, string baseline,
+and name-feature GBM --- the L-6 is the only one whose worst pool
+stays strong. Given the full record, trees and joint encoding tie
+on curated pools and the cross-encoder wins the fielded universe.
+The transferable signal lives in the structured record --- no
+name-only method, joint attention included, can recover fields it
+was never given --- and joint encoding is the best way we test of
+keeping that signal under distribution shift.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
 collapsing under every pool change we test, though on one event
@@ -702,8 +704,8 @@ fraction of the cross-encoder's (\S\ref{ssec:robustness}). Per event it is a
 one-way bet on acquirer-renaming, and there it is genuinely hard to
 beat: on the M\&A slice of the TIME split ($n{=}1{,}506$) it scores
 0.741, \emph{above} both the L-6 (0.625) and the ensemble (0.711)
---- the event type the inversion is built for (the full-record
-GBMs still outscore it there, 0.79--0.88). The bet is one-way: the same heuristic scores 0.11 on
+--- the event type the inversion is built for (full-record
+models still outscore it there). The bet is one-way: the same heuristic scores 0.11 on
 pure renames and 0.35 on legal-form changes, where the
 cross-encoder scores 0.90 and 0.85, and it loses pairwise AUROC to
 the cross-encoder on every split (Table~\ref{tab:main_results}).
@@ -789,25 +791,28 @@ negatives were chosen?
     retrieval from the full 3.3M-entity universe. Read rows by
     their \emph{minimum}. The name-only exploits (rows 1--2)
     collapse off-pool; the name-feature GBM retrained on TF-IDF
-    negatives (row 3) recovers only on its own miner's pool. Among name-input methods only the cross-encoder
-    transfers (row 5) --- and the feature GBM given clean negatives
-    \emph{and} the full structured record (row 4) transfers with
-    the highest minimum in the paper (\S\ref{ssec:anti}). The
+    negatives (row 3) recovers only on its own miner's pool. Among
+    name-input methods only the cross-encoder transfers (row 5).
+    Given clean negatives \emph{and} the full record, trees (row
+    4) and joint encoding (row 6) both transfer --- and the
+    full-record cross-encoder holds the highest minimum and wins
+    the fielded pool (\S\ref{ssec:anti}). The
     TF-IDF-pool cross-encoder cell is the re-trained
     \texttt{trn-E5} reproduction (within 2\,pp,
     Table~\ref{tab:robustness}); fielded cells include the gold
     for evaluability (strict conditional and end-to-end in the
     text); JURIS in the text and tables.}
-  \Description{A five-row by three-column matrix of expected
-    Hits@1, shaded light to dark by value. Rows: inverted token-set,
-    name-feature GBM, GBM retrained on TF-IDF negatives, GBM with
-    the full structured record on E5 negatives, and the
-    cross-encoder. Columns: released pool, TF-IDF pool, fielded
-    3.3-million-entity pool. The two exploit rows fall from 0.70 and 0.77 on the released
-    pool to below 0.20 fielded; the TF-IDF
-    retrain recovers partially; the full-record GBM stays between
-    0.63 and 0.78 everywhere, the highest minimum; the
-    cross-encoder stays between 0.52 and 0.61.}
+  \Description{A six-row by three-column matrix of expected
+    Hits@1, shaded light to dark by value. Rows: inverted
+    token-set, name-feature GBM, GBM retrained on TF-IDF negatives,
+    GBM with the full structured record, name+state cross-encoder,
+    and full-record cross-encoder. Columns: released pool, TF-IDF
+    pool, fielded 3.3-million-entity pool. The two exploit rows
+    fall from 0.70 and 0.77 on the released pool to below 0.20
+    fielded; the TF-IDF retrain recovers partially; the full-record
+    GBM stays between 0.63 and 0.78; the name+state cross-encoder
+    between 0.52 and 0.61; the full-record cross-encoder between
+    0.68 and 0.77 with the strongest fielded cells.}
   \label{fig:matrix}
 \end{figure}
 
@@ -853,15 +858,13 @@ cell is trn-TF-IDF on the TF-IDF pool.
   \end{tabular}
 \end{table*}
 
-\paragraph{What the 2$\times$2 tells us.} The cross-encoder
-\emph{architecture} generalizes across miners: each trained model
-lands within 1--2\,pp of the other on the pool it never saw
-(TIME/EVENT), miner-matching is worth a bounded $+7$--$11$\,pp,
-and the gain over zero-shot E5 survives every pairing ($+13$ to
-$+40$\,pp, outside any CI band). The absolute size of the gain
-still depends on how the pool was mined, so the
-``$+24$--$35$\,pp'' figure in the abstract should be read in that
-light.
+\paragraph{What the 2$\times$2 tells us.} The architecture
+generalizes across miners: each trained model lands within
+1--2\,pp of the other on the pool it never saw (TIME/EVENT),
+miner-matching is worth a bounded $+7$--$11$\,pp, and the gain
+over zero-shot E5 survives every pairing ($+13$ to $+40$\,pp,
+outside any CI band) --- though its size depends on the miner, so
+read the abstract's ``$+24$--$35$\,pp'' in that light.
 
 \paragraph{Fielded retrieve-then-rerank.} The miner-robustness
 experiment above shifts the mining signal but still draws candidates
@@ -879,14 +882,15 @@ is the embedding, not the filter.
 
 Bi-encoder Recall@20 is 33.2 / 39.6 / 49.7\% on TIME / EVENT /
 JURIS. That is the hard ceiling for any reranker. When the bi-encoder
-does retrieve the true successor, the L-6 cross-encoder picks it
-\#1 with 46--57\% Hits@1, the L-6$\times$L-12 ensemble reaches
-53--60\%, and the full-record GBM 51--66\% (n.s.\ vs.\ the
-ensemble) --- reranker differences compress once distractors look
-genuinely lifecycle-plausible.
+does retrieve the true successor, the L-6 picks it \#1 with
+46--57\% Hits@1, the ensemble 53--60\%, the full-record GBM
+51--66\% (n.s.\ vs.\ the ensemble) --- and the full-record
+cross-encoder 64--78\%, $+$12\,pp clear of every other reranker
+($p<10^{-4}$; \S\ref{ssec:anti}).
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6,
-17--30\% for the ensemble, and 17--33\% for the full-record GBM.
+17--30\% for the ensemble, 17--33\% for the full-record GBM, and
+21--39\% for the full-record cross-encoder.
 The drop from in-distribution to deployment confirms rather
 than contradicts \S\ref{ssec:ce}: the bi-encoder's
 fixed-embedding limit, which fails to retrieve lifecycle-spanning
@@ -1028,7 +1032,7 @@ not a universal claim about name similarity in ER.
 
 \paragraph{In-distribution headline overstates deployment.}
 The headline Hits@1 is measured on the released pool; end-to-end on
-the fielded pipeline every reranker falls to 15--33\%
+the fielded pipeline every reranker falls to 15--39\%
 (\S\ref{ssec:robustness}) because bi-encoder Recall@20 is
 33--50\%, so the reranker often never sees the true successor.
 The gain is partly pool-specific but survives miner shift ($+13$ to
@@ -1081,10 +1085,10 @@ may partly reflect exposure to GLEIF-derived text.
 thin slice.} The cross-encoder underperforms zero-shot E5-small on
 out-of-domain product matching (Walmart-Amazon, $-$5.9\,pp AUROC;
 \S\ref{ssec:diagnostics}): the representation is specialized to
-lifecycle ER, not generic. Symmetrically, no cross-encoder here was
-given the \emph{full} structured record the winning GBM sees; the
-enriched-prompt ensemble injects part of it and closes the fielded
-gap, so a full-record cross-encoder is the natural next comparison. Parent/subsidiary negatives regress
+lifecycle ER, not generic. The full-record cross-encoder closes
+the input gap (\S\ref{ssec:anti}) but pays the usual joint-encoding
+inference premium over trees; a full-record \emph{LLM} prompt is
+the remaining untested cell. Parent/subsidiary negatives regress
 (0.50 $\to$ 0.67 $\to$ 0.75 across bi-encoder, L-6, and ensemble),
 though at 99 held-out examples the effect is weak; explicit
 multi-class modeling of related-but-distinct entities is clear
@@ -1099,14 +1103,15 @@ protocol that separates methods that learn the pool from methods
 that learn the task. Name-only exploits post the paper's best
 name-input scores and collapse off-pool. Among name-input methods,
 one 22M-parameter cross-encoder is the only survivor, above every
-zero-shot LLM we test on the two large splits. And the ceiling is the input, not the
-architecture: boosted trees over the full structured registry
-record transfer across every pool with the highest minimum in the
-paper, at negligible inference cost --- the lifecycle signal lives
-in the record, not the name. What remains open is the first stage:
-every reranker is capped by 33--50\% retrieval recall, so
-candidate generation, not matching, is where lifecycle ER breaks
-today.
+zero-shot LLM we test on the two large splits. The input sets the
+ceiling: boosted trees over the full structured record transfer
+across every pool at negligible cost, and a cross-encoder over the
+same record keeps the most signal under shift, winning the fielded
+universe by 12\,pp --- the lifecycle signal lives in the record,
+and joint encoding is how you keep it. What remains open is the
+first stage: even the best reranker is capped by 33--50\%
+retrieval recall, so candidate generation, not matching, is where
+lifecycle ER breaks today.
 
 \paragraph{Reproducibility.} Code, parsers, predictions, trained
 weights, and a datasheet: \url{https://github.com/chang-07/er-research}.

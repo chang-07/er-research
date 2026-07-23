@@ -29,10 +29,14 @@ VARIANTS = [
     ("C: E5negs/full",           "features_gbm_trnv2full"),
     ("D: v3negs/full",           "features_gbm_trnv3full"),
     ("Cross-encoder L-6",        None),  # special-cased file map
+    ("CE full-record",           "FULLREC"),
 ]
 CE_FILES = {"bench": "method_v2_crossenc.parquet",
             "v3": "method_v2_crossenc_repro_on_pairs_v3.parquet",
             "fld": "method_v2_crossenc_fielded.parquet"}
+FULLREC_FILES = {"bench": "method_ce_fullrecord.parquet",
+                 "v3": "method_ce_fullrecord_on_pairs_v3.parquet",
+                 "fld": "method_ce_fullrecord_on_pairs_fielded.parquet"}
 
 POOLS = {"bench": "pairs.parquet", "v3": "pairs_v3.parquet",
          "fld": "pairs_fielded.parquet"}
@@ -79,9 +83,13 @@ hdr = (f"{'variant':26s} | bench T/E/J        | v3 T/E/J           "
 print(hdr)
 print("-" * len(hdr))
 for name, stem in VARIANTS:
-    files = CE_FILES if stem is None else {
-        "bench": f"{stem}.parquet", "v3": f"{stem}_v3.parquet",
-        "fld": f"{stem}_fielded.parquet"}
+    if stem is None:
+        files = CE_FILES
+    elif stem == "FULLREC":
+        files = FULLREC_FILES
+    else:
+        files = {"bench": f"{stem}.parquet", "v3": f"{stem}_v3.parquet",
+                 "fld": f"{stem}_fielded.parquet"}
     if not all(os.path.exists(os.path.join(DATA, "predictions", f))
                for f in files.values()):
         print(f"{name:26s} | (predictions missing)")

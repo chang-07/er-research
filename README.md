@@ -34,8 +34,11 @@ No proprietary sources required; the full pipeline runs end-to-end on a laptop.
    (liveness, addresses, previous names, dates) **transfers everywhere and
    wins**: 0.783 / 0.753 / 0.881 on-pool (+18 pp over the L-6, p<1e-4),
    0.78 / 0.75 cross-miner, 0.51–0.66 fielded retrieval-conditional (n.s. vs
-   the enriched ensemble). The lifecycle signal lives in the record, not the
-   name.
+   the enriched ensemble). And a **cross-encoder over the same record** completes
+   the grid: it ties the trees on curated pools and **wins the fielded universe**
+   (0.64–0.78 retrieval-conditional, +12pp over the GBM, p<1e-4; end-to-end
+   21–39%, the best in the repo). The lifecycle signal lives in the record;
+   joint encoding keeps the most of it under pool shift.
 4. **The honest numbers come from off-pool tests.** Both exploits **collapse**
    off-pool (GBM: 0.27–0.36 on a different-miner pool, 0.12–0.15 fielded);
    within the name-input class the cross-encoder stays strong
@@ -269,6 +272,9 @@ python3 src/benchmark/build_pairs_v2.py --data data/     # E5-negative pool (mat
 python3 src/baselines/features_gbm.py --data data/ --train-pairs pairs_v2.parquet \
     --features full --out-suffix _trnv2full         # full-record GBM (the de-confounded variant)
 python3 src/eval/eval_gbm_sweep.py data/            # score the sweep on all 3 pools + fielded views
+python3 src/method/train_cross_encoder.py --data data/ --prompt full-record \
+    --out-name method_ce_fullrecord \
+    --extra-pairs pairs_v3.parquet,pairs_fielded.parquet   # full-record CE (completes the grid)
 python3 src/eval/evaluate.py     --data data/   # AUROC, AUPRC, Hits@K, MRR
 ```
 LLM pairwise drives paid APIs and is **not** run autonomously. It needs a key

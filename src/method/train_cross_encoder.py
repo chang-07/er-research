@@ -94,6 +94,45 @@ def format_entity(name, country, form, city=None, year=None,
             parts.append(f"subsidiaries: {', '.join(cn)}")
     return " | ".join(parts)
 
+def format_entity_fullrecord(r, year_str=None):
+    """Serialize the SAME field set the full-record GBM consumes
+    (features_gbm.FULL_ENTITY_COLS): raw codes, fixed order, missing
+    fields omitted. No parent/child names, no ISO expansion --- the
+    only delta vs the headline model's basic prompt is the added
+    record fields, so input class is the sole manipulated variable.
+    Successor fields are excluded (label source)."""
+    name = (r.get("legal_name") or "").strip() or "(unknown)"
+    parts = [name,
+             f"jurisdiction: {(r.get('legal_addr_country') or '??').strip() or '??'}",
+             f"form: {(r.get('legal_form_code') or '??').strip() or '??'}"]
+    if r.get("legal_addr_city"):
+        parts.append(f"city: {str(r['legal_addr_city']).strip()}")
+    if r.get("legal_addr_region"):
+        parts.append(f"region: {str(r['legal_addr_region']).strip()}")
+    if r.get("legal_addr_postal_code"):
+        parts.append(f"postal: {str(r['legal_addr_postal_code']).strip()}")
+    hq = " ".join(str(r[k]).strip() for k in ("hq_addr_country", "hq_addr_city")
+                  if r.get(k) and str(r[k]).strip())
+    if hq:
+        parts.append(f"hq: {hq}")
+    st = "/".join(str(r[k]).strip() for k in ("entity_status", "registration_status")
+                  if r.get(k) and str(r[k]).strip())
+    if st:
+        parts.append(f"status: {st}")
+    if r.get("category") and r["category"] != "GENERAL":
+        parts.append(f"category: {str(r['category']).lower().replace('_', ' ')}")
+    if r.get("managing_lou"):
+        parts.append(f"lou: {str(r['managing_lou']).strip()}")
+    if year_str:
+        parts.append(f"founded: {year_str}")
+    on = r.get("other_names")
+    if on is not None and len(on) > 0:
+        aka = [str(x).strip() for x in list(on)[:2] if str(x).strip()]
+        if aka:
+            parts.append(f"aka: {'; '.join(aka)}")
+    return " | ".join(parts)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data")
@@ -107,6 +146,10 @@ def main():
     ap.add_argument("--max-train-pairs", type=int, default=None)
     ap.add_argument("--out-name", default="method_v2_crossenc")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--prompt", default="enriched",
+                    choices=["enriched", "full-record"],
+                    help="'enriched' = the v4 prompt (default); "
+                         "'full-record' = GBM-parity structured record")
     ap.add_argument("--hard-negs", default="hard_negatives_v2.parquet",
                     help="hard-neg parquet filename under --data for TRAINING")
     ap.add_argument("--train-pairs", default="pairs.parquet",
@@ -143,11 +186,16 @@ def main():
     lei_set = set(pairs["anchor_lei"]) | set(pairs["candidate_lei"])
     for pp in extra_pairs_dfs.values():
         lei_set |= set(pp["anchor_lei"]) | set(pp["candidate_lei"])
+    ent_cols = ["lei", "legal_name", "legal_addr_country", "legal_form_code",
+                "legal_addr_city", "entity_creation_date",
+                "legal_jurisdiction", "category", "hq_addr_country"]
+    if args.prompt == "full-record":
+        ent_cols += ["other_names", "legal_addr_region",
+                     "legal_addr_postal_code", "hq_addr_city",
+                     "entity_status", "registration_status", "managing_lou"]
     ent = pq.read_table(
         os.path.join(args.data, "entities.parquet"),
-        columns=["lei", "legal_name", "legal_addr_country", "legal_form_code",
-                  "legal_addr_city", "entity_creation_date",
-                  "legal_jurisdiction", "category", "hq_addr_country"],
+        columns=ent_cols,
     ).to_pandas().drop_duplicates(subset=["lei"], keep="first")
     ent = ent[ent["lei"].isin(lei_set)].reset_index(drop=True)
     # creation year only (full date is overkill in the prompt)
@@ -186,6 +234,15 @@ def main():
         r = ent_map.get(lei)
         if not r:
             return "(unknown)"
+        if args.prompt == "full-record":
+            year = r.get("creation_year")
+            ystr = None
+            try:
+                if year and not (isinstance(year, float) and (year != year)):
+                    ystr = str(int(year))
+            except Exception:
+                pass
+            return format_entity_fullrecord(r, year_str=ystr)
         # parent + up-to-2 children from L2 RR
         parent_lei = parent_of.get(lei)
         parent_name = name_of.get(parent_lei) if parent_lei else None
