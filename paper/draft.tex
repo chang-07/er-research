@@ -72,20 +72,23 @@ a pool from an unrelated miner, and candidates retrieved from the
 full universe. The protocol has teeth: the benchmark deliberately mines
 name-similar negatives against name-different positives, and the
 methods that exploit this --- inverted name similarity (64--70\%
-Hits@1) and a name-feature GBM (0.73--0.84, the best on-pool
-scores we observe) --- collapse on the other two pools.
+Hits@1 on time/event) and a name-feature GBM (0.73--0.84, the best
+name-input scores we observe) --- collapse on the other two
+pools.
 Among methods restricted to name and registration-state inputs, a
 22M-parameter MiniLM cross-encoder is the only one that transfers:
-0.82--0.87 AUROC and 57--61\% Hits@1 on time/event
-($\pm$2.0--2.3\,pp 95\% CI), 24--35\,pp above the strongest
-bi-encoder and, under a uniform single-pair protocol, above all six
-zero-shot LLMs tested (four organizations).
+0.82--0.87 AUROC across the three regimes, 57--61\% Hits@1 on
+time/event ($\pm$2.0--2.3\,pp 95\% CI), 24--35\,pp above the
+strongest bi-encoder, and, under a uniform single-pair protocol,
+above all six zero-shot LLMs tested (four organizations) on the
+two large splits.
 But the ceiling is not architectural: a gradient-boosted matcher
 given the \emph{full} structured registry record (liveness,
 addresses, previous names, dates --- fields no name-only method
 sees) transfers across every pool as well, beating the
-cross-encoder on-pool by 18\,pp ($p<10^{-4}$) and matching the best
-neural system on retrieved candidates at negligible inference cost.
+cross-encoder on-pool by 18\,pp ($p<10^{-4}$), within noise of
+the best neural system on retrieved candidates, at negligible
+inference cost.
 The lifecycle signal lives in the record, not the name.
 End-to-end, every reranker is capped at 15--33\% Hits@1 by
 33--50\% retrieval recall: the bottleneck is retrieval.
@@ -165,7 +168,7 @@ what identifies the true lifecycle successor?}
       \textcolor{black!45}{\rule[0.2pt]{27.4pt}{5pt}} & .20\\
     best zero-shot LLM (Opus 4.7) &
       \textcolor{black!45}{\rule[0.2pt]{47.3pt}{5pt}} & .35\\
-    cross-encoder L-6 (names only) &
+    cross-encoder L-6 (name$+$state) &
       \textcolor{teal!70!black}{\rule[0.2pt]{81.9pt}{5pt}} & .61\\
     feature GBM (full record) &
       \textcolor{black!45}{\rule[0.2pt]{105.6pt}{5pt}} & .78\\
@@ -211,16 +214,17 @@ what identifies the true lifecycle successor?}
         (\S\ref{sec:experiments}): negatives are mined name-similar
         while positives are name-different by construction --- not a
         claim about ER generally --- so \emph{inverted} name
-        similarity and a name-feature GBM post the best on-pool
-        scores we observe, then collapse on the two other pools
+        similarity and a name-feature GBM post the best
+        name-input on-pool scores we observe, then collapse on the
+        two other pools
         (\S\ref{ssec:anti}). Among name+state-input methods a
         22M-parameter cross-encoder is the only one that transfers
         (24--35\,pp Hits@1 over the best bi-encoder, above all six
-        zero-shot LLMs; gains concentrated on M\&A and absorption).
-        But given the \emph{full} structured record, a
-        gradient-boosted matcher transfers everywhere too and beats
-        the cross-encoder on-pool by 18\,pp ($p<10^{-4}$;
-        \S\ref{ssec:robustness}): the transferable signal is in the
+        zero-shot LLMs on TIME/EVENT; gains concentrated on M\&A
+        and absorption). But given the \emph{full} structured
+        record, a gradient-boosted matcher transfers everywhere too
+        and beats the cross-encoder on-pool by 18\,pp
+        ($p<10^{-4}$; \S\ref{ssec:anti}): the transferable signal is in the
         record's structured fields, not the name --- and no name-only
         method, neural or not, can recover it.
 
@@ -389,7 +393,8 @@ We present two methods at different cost-accuracy points: a bi-encoder
 cosine --- cheap, but hemmed in by the benchmark's anti-correlation
 property (name similarity anti-predicts the label here; \S\ref{ssec:anti}) ---
 and a cross-encoder (\S\ref{ssec:ce}) that reads both records together,
-4--10$\times$ more expensive per pair, producing the headline result.
+4--10$\times$ more expensive per pair, producing the headline
+name-input result.
 
 \subsection{Bi-encoder}
 \label{ssec:bi}
@@ -442,7 +447,8 @@ Re-mining with E5-cosine top-20 same-country candidates, in place of
 the noisy token-overlap fallback, yields 652{,}764 negatives across
 31{,}714 predecessors (vs.\ 253{,}733 over $\sim$20K before). The
 cleaner negatives are what the cross-encoder trains on, to large
-effect; for the bi-encoder they change nothing
+effect --- and half of what unlocks the full-record GBM's transfer
+(\S\ref{ssec:anti}); for the bi-encoder they change nothing
 (\S\ref{ssec:ablations}).
 
 \section{Experiments}
@@ -458,10 +464,12 @@ backbone un-tuned) --- and one \emph{supervised} classical matcher,
 \texttt{features\_gbm}: gradient-boosted trees over twelve
 string-similarity and field-agreement features in the
 Fellegi--Sunter lineage~\cite{fellegisunter1969}, trained on the
-released pool's no-leakage rows; the production default. Six
+released pool's no-leakage rows; the classical name-feature
+default (\S\ref{ssec:anti} upgrades it to the full record). Six
 zero-shot LLMs run under one protocol: one call per pair,
-byte-identical prompts, a 0--10 integer rubric,
-\texttt{temperature=0} where exposed. Five API models from three
+byte-identical prompts carrying the same name+state inputs as the
+neural models (legal name, jurisdiction, legal form), a 0--10
+integer rubric, \texttt{temperature=0} where exposed. Five API models from three
 organizations cover the full test set (26{,}564 pairs each) ---
 \textbf{Claude Haiku 4.5}, \textbf{Sonnet 4.6}, \textbf{Opus 4.7},
 \textbf{Gemini 3.1 Pro}, \textbf{DeepSeek V4 Pro} (thinking
@@ -503,16 +511,15 @@ behind part of this spread.
 \subsection{Metrics}
 \label{ssec:metrics}
 
-We report per-anchor retrieval metrics (Hits@1, MRR) computed by
-ranking each anchor's candidates by score, and AUROC for the pair-wise
-classification framing; Hits@3, AUPRC, and threshold-tuned F1 ship with
-the released per-run metrics. Discrete scorers tie frequently within
-a pool, so Hits@k/MRR are exact \emph{expectations over uniformly
-random tie-breaking} (a fixed tie order is biased). Per-anchor
-metrics cover \emph{eligible} anchors --- pool size $\geq 2$ with
-the gold present. Because 37\% of predecessors have no mined hard
-negative (\S\ref{sec:benchmark}), their singleton pools are
-excluded: e.g., 1{,}612 of 2{,}760 EVENT-test anchors are eligible.
+We report per-anchor Hits@1/MRR and pairwise AUROC; Hits@3,
+AUPRC, and threshold-tuned F1 ship with the released metrics.
+Discrete scorers tie frequently, so Hits@k/MRR are exact
+\emph{expectations over uniformly random tie-breaking} (a fixed
+tie order is biased). Per-anchor metrics cover \emph{eligible}
+anchors --- pool size $\geq 2$ with the gold present; the 37\% of
+predecessors with no mined hard negative (\S\ref{sec:benchmark})
+have singleton pools and are excluded (e.g., 1{,}612 of 2{,}760
+EVENT-test anchors are eligible).
 
 \subsection{Headline results}
 \label{ssec:main}
@@ -536,15 +543,17 @@ L-6$\times$L-12 ensemble.
   \caption{Test-set metrics on the three split regimes, released
     pool. Bold = headline L-6 cross-encoder used in baseline
     comparisons; the L-12 matches or beats it throughout, and the
-    L-6$\times$L-12 ensemble (Table~\ref{tab:v7}) is the best method
-    that survives pool shift (\S\ref{ssec:anti}). Random ranking
+    L-6$\times$L-12 ensemble (Table~\ref{tab:v7}) is the strongest
+    \emph{name-input} method that survives pool shift
+    (\S\ref{ssec:anti}). Random ranking
     scores 0.18--0.22 Hits@1 (pools average 7.4--8.3 candidates); the
     best bi-encoder lifts Hits@1 5--8\,pp over zero-shot E5-small and
     the cross-encoder a further 24--35\,pp. Hits@1 95\% CIs:
     $\pm$2.0 / $\pm$2.3 / $\pm$8.5\,pp. $^{\S}$Supervised GBMs (\S\ref{ssec:anti}): the
     name-feature variant and \texttt{anti-token\_set} (\emph{negated}
-    similarity) exploit the construction --- strongest here,
-    near-chance off-pool --- while \texttt{features\_gbm-full},
+    similarity) exploit the construction --- the strongest
+    name-input rows here, near-chance off-pool --- while
+    \texttt{features\_gbm-full},
     trained on the cross-encoder's negatives with the full
     structured record, transfers across all three pools
     (Figure~\ref{fig:matrix}). Protocol and metrics:
@@ -654,20 +663,26 @@ Is that collapse a fact about feature models, or about what we fed
 this one? Its two handicaps --- v1 negatives, name-only features
 --- are removable, separately and jointly. On the cross-encoder's
 own E5-mined negatives, the name-feature GBM improves cross-pool
-but still dies fielded (0.25\,/\,0.26 retrieval-conditional vs.\
-0.46\,/\,0.50). Given the full structured record (addresses,
+but still dies fielded (0.25\,/\,0.25 retrieval-conditional vs.\
+0.46\,/\,0.50); a TF-IDF-negative retrain behaves alike
+(Figure~\ref{fig:matrix}, row 3). Given the full structured record (addresses,
 previous names, liveness, registration status, dates, registrar;
 the successor fields the labels derive from are excluded) but v1
 negatives, it wins the released pool (0.87\,/\,0.84) yet still
 fails to cross pools (0.38\,/\,0.35 on TF-IDF). Given
-\emph{both}, it transfers everywhere and wins: 0.78\,/\,0.75
-on-pool ($+$18\,pp over the L-6, $p<10^{-4}$; $+$8\,pp over the
-ensemble), 0.78\,/\,0.75 on TF-IDF, 0.51--0.66 fielded
-retrieval-conditional --- indistinguishable from the enriched
-ensemble there ($p\geq 0.07$) at negligible inference cost.
-Permutation importance credits fields no name-only method sees:
-candidate liveness, shared postal/city, previous-name overlap,
-same registrar.
+\emph{both}, it transfers everywhere and wins
+(\texttt{features\_gbm-full}): 0.78\,/\,0.75 on-pool
+($+$18\,pp over the L-6, $p<10^{-4}$; $+$8\,pp over the
+ensemble), 0.78\,/\,0.75 on TF-IDF, and 0.51--0.66 fielded
+retrieval-conditional, where the enriched ensemble leads by
+1--3\,pp on TIME/EVENT and trails by 6\,pp on JURIS (all n.s.)
+--- at negligible inference cost. Permutation importance credits
+fields no name-only method sees: candidate liveness, shared
+postal/city, previous-name overlap, same registrar. Nor is the
+transfer a live-vs-dead prior: ablating all four
+liveness/registration-status features costs 4--7\,pp and transfer
+survives (0.72\,/\,0.72 on TF-IDF; 0.43\,/\,0.47
+fielded-conditional, at parity with the L-6).
 
 The cross-encoder's claim accordingly narrows to its input class:
 among methods that see only names and registration state --- every
@@ -677,8 +692,8 @@ signal lives in the structured record, and no name-only method,
 joint attention included, can recover fields it was never given.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
-collapsing under every pool change we test, though it remains
-the strongest method on one event type. On
+collapsing under every pool change we test, though on one event
+type it outranks both cross-encoders. On
 \textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
 0.20 Hits@1) while the cross-encoders hold 0.53--0.66
 (Table~\ref{tab:robustness}); on the
@@ -686,17 +701,16 @@ fielded pool it drops to 9--18\% (gold-included, as plotted), a
 fraction of the cross-encoder's (\S\ref{ssec:robustness}). Per event it is a
 one-way bet on acquirer-renaming, and there it is genuinely hard to
 beat: on the M\&A slice of the TIME split ($n{=}1{,}506$) it scores
-0.741, \emph{above} both the L-6 (0.625) and the ensemble (0.711).
-That is the one condition we test where an exploit is not merely
-competitive but best, and it is the event type the inversion is
-built for. The bet is one-way: the same heuristic scores 0.11 on
+0.741, \emph{above} both the L-6 (0.625) and the ensemble (0.711)
+--- the event type the inversion is built for (the full-record
+GBMs still outscore it there, 0.79--0.88). The bet is one-way: the same heuristic scores 0.11 on
 pure renames and 0.35 on legal-form changes, where the
 cross-encoder scores 0.90 and 0.85, and it loses pairwise AUROC to
 the cross-encoder on every split (Table~\ref{tab:main_results}).
-Curated-pool Hits@1 alone can therefore be gamed; the
-cross-encoder's claim is being strong \emph{simultaneously} on the
-curated pool, the alternative-miner pool, the fielded pool, and
-every event type with a usable sample
+Curated-pool Hits@1 alone can therefore be gamed; within the
+name-input class, the cross-encoder's claim is being strong
+\emph{simultaneously} on the curated pool, the alternative-miner
+pool, the fielded pool, and every event type with a usable sample
 (Figure~\ref{fig:matrix}). The mechanism is joint attention:
 asking whether the \emph{differences} between two records look
 like a lifecycle-event pattern, not how similar two strings are.
@@ -774,8 +788,8 @@ negatives were chosen?
     from the released pool to an unrelated miner's pool to
     retrieval from the full 3.3M-entity universe. Read rows by
     their \emph{minimum}. The name-only exploits (rows 1--2)
-    collapse off-pool; TF-IDF retraining (row 3) wins only its own
-    miner's pool. Among name-input methods only the cross-encoder
+    collapse off-pool; the name-feature GBM retrained on TF-IDF
+    negatives (row 3) recovers only on its own miner's pool. Among name-input methods only the cross-encoder
     transfers (row 5) --- and the feature GBM given clean negatives
     \emph{and} the full structured record (row 4) transfers with
     the highest minimum in the paper (\S\ref{ssec:anti}). The
@@ -789,8 +803,8 @@ negatives were chosen?
     name-feature GBM, GBM retrained on TF-IDF negatives, GBM with
     the full structured record on E5 negatives, and the
     cross-encoder. Columns: released pool, TF-IDF pool, fielded
-    3.3-million-entity pool. The two exploit rows fall from about
-    0.70 on the released pool to below 0.20 fielded; the TF-IDF
+    3.3-million-entity pool. The two exploit rows fall from 0.70 and 0.77 on the released
+    pool to below 0.20 fielded; the TF-IDF
     retrain recovers partially; the full-record GBM stays between
     0.63 and 0.78 everywhere, the highest minimum; the
     cross-encoder stays between 0.52 and 0.61.}
@@ -872,7 +886,7 @@ ensemble) --- reranker differences compress once distractors look
 genuinely lifecycle-plausible.
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6,
-18--30\% for the ensemble, and 17--33\% for the full-record GBM.
+17--30\% for the ensemble, and 17--33\% for the full-record GBM.
 The drop from in-distribution to deployment confirms rather
 than contradicts \S\ref{ssec:ce}: the bi-encoder's
 fixed-embedding limit, which fails to retrieve lifecycle-spanning
@@ -928,26 +942,18 @@ noise below 2\% there; human expert review is future work.
 \subsection{Where each method is fooled}
 
 Table~\ref{tab:neg_class} reports per-negative-class mean score
-(higher = more often fooled). The fine-tuned bi-encoders cut the
-zero-shot E5 baseline's score on \texttt{parent\_subsidiary} and
-\texttt{same\_name\_diff\_country} negatives by 40--52\%, but
-\texttt{same\_name\_same\_country} remains a wall at $\approx$0.89 mean score: the bi-encoder
-cannot reliably tell a real successor link from two distinct entities
-sharing an exact normalized name in the same country.
-
-The cross-encoder breaks that wall: \texttt{same\_name\_same\_country}
-mean score drops from 0.89 (best bi-encoder) to 0.43, and the
-L-6$\times$L-12 ensemble drops it further to 0.36. The ensemble also
-nearly solves \texttt{same\_name\_diff\_country} (0.91 zero-shot
-$\to$ 0.17) and \texttt{token\_overlap\_same\_country} (0.91 $\to$ 0.28). The one
-regression is \texttt{parent\_subsidiary} (0.50 bi-encoder $\to$ 0.67
-L-6 cross-encoder $\to$ 0.75 ensemble): the joint encoder occasionally
-treats parent--subsidiary edges as positive lifecycle bridges, and the
-ensemble's prompt enrichment that injects GLEIF L2 parent/child names makes
-the regression \emph{worse}, not better. With only 99 held-out
-examples in this class the headline impact is small, but the trend
-points at a clear direction: explicit multi-class modeling of
-corporate-hierarchy relationships.
+(higher = more often fooled). Bi-encoders cut zero-shot E5's score
+on \texttt{parent\_subsidiary} and
+\texttt{same\_name\_diff\_country} by 40--52\%, but
+\texttt{same\_name\_same\_country} remains a wall at
+$\approx$0.89. The cross-encoder breaks it (0.89 $\to$ 0.43; 0.36
+ensemble) and nearly solves the other name classes (0.91 $\to$
+0.17 / 0.28). The one regression is \texttt{parent\_subsidiary}
+(0.50 $\to$ 0.67 $\to$ 0.75 across bi-encoder, L-6, ensemble):
+the prompt enrichment that injects GLEIF L2 parent/child names
+makes it \emph{worse}. At 99 held-out examples the headline impact
+is small, but the direction is clear: explicit multi-class
+modeling of corporate-hierarchy relationships.
 
 \begin{table}[t]
   \centering
@@ -989,8 +995,8 @@ collisions.
 
 The 19 ``no shared tokens'' cases are the hardest: no
 similarity-based representation can solve them --- they require
-world knowledge or graph context (board overlap, regulatory
-filings, press releases). Figure~\ref{fig:task}'s anchor is
+world knowledge, graph context, or the full structured record
+(\S\ref{ssec:anti}). Figure~\ref{fig:task}'s anchor is
 representative: resolving ``DB'' to Deutsche Bank is external
 knowledge a 33M-parameter encoder is unlikely to memorize from
 name strings alone.
@@ -1067,8 +1073,9 @@ also moves results (batched Sonnet 4.6 scores 0.46 TIME vs.\ 0.40
 single-pair on the same 56 anchors). The panel therefore bounds
 what this elicitation format extracts, not what these models can
 do: finer scales, log-probs, or comparative tie-breaks would
-likely raise them, and cross-vendor gaps may partly reflect
-exposure to GLEIF-derived text.
+likely raise them --- as would a full-record prompt, the LLM
+analogue of \S\ref{ssec:anti}'s finding --- and cross-vendor gaps
+may partly reflect exposure to GLEIF-derived text.
 
 \paragraph{The model is specialized, and parent/subsidiary is a
 thin slice.} The cross-encoder underperforms zero-shot E5-small on
@@ -1090,9 +1097,9 @@ entity resolution on financial entities, built entirely from
 public GLEIF, SEC EDGAR, and Wikidata data, with a three-pool
 protocol that separates methods that learn the pool from methods
 that learn the task. Name-only exploits post the paper's best
-on-pool scores and collapse off-pool. Among name-input methods,
+name-input scores and collapse off-pool. Among name-input methods,
 one 22M-parameter cross-encoder is the only survivor, above every
-zero-shot LLM we test. And the ceiling is the input, not the
+zero-shot LLM we test on the two large splits. And the ceiling is the input, not the
 architecture: boosted trees over the full structured registry
 record transfer across every pool with the highest minimum in the
 paper, at negligible inference cost --- the lifecycle signal lives

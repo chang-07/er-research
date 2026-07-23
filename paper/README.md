@@ -8,7 +8,7 @@ Resolution on Open Financial Data."
 
 | File | What |
 |---|---|
-| `draft.tex` | Full LaTeX source. Uses `article` class as a placeholder; swap to `neurips_2026.sty` (or the venue's style file) at submission time. |
+| `draft.tex` | Full LaTeX source (`acmart` sigconf, ICAIF 2026 target; swap options to `[sigconf,anonymous,review]` at submission). |
 | `refs.bib` | Bibliography. |
 | `datasheet.md` | Datasheet for Datasets (Gebru et al.) — required appendix for NeurIPS D&B and ACL Data tracks. |
 | `figures/` | Vector PDFs (LaTeX inputs) and PNG previews (for quick viewing on GitHub). |
@@ -38,7 +38,7 @@ files in `data/predictions/`.
 
 ## Submission-time checklist
 
-- [ ] Swap `\documentclass{article}` for the venue style file.
+- [ ] Switch acmart options to `[sigconf,anonymous,review]`, add CCS concepts, anonymize author block + repo URL.
 - [ ] Update author block (currently single-author placeholder).
 - [ ] Fill in any anonymous-review redactions if double-blind.
 - [ ] Re-render figures at the venue's required DPI.

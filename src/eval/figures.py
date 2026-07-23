@@ -457,7 +457,7 @@ def fig9_generalization_matrix(data="data", out_dir=OUT_DIR):
          {"bench": "features_gbm_trnv2full.parquet",
           "v3": "features_gbm_trnv2full_v3.parquet",
           "fld": "features_gbm_trnv2full_fielded.parquet"}),
-        ("cross-encoder L-6\n(names only)", False,
+        ("cross-encoder L-6\n(name+state)", False,
          {"bench": "method_v2_crossenc.parquet",
           "v3": "method_v2_crossenc_repro_on_pairs_v3.parquet",
           "fld": "method_v2_crossenc_fielded.parquet"}),

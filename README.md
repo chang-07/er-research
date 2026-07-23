@@ -38,9 +38,10 @@ No proprietary sources required; the full pipeline runs end-to-end on a laptop.
    name.
 4. **The honest numbers come from off-pool tests.** Both exploits **collapse**
    off-pool (GBM: 0.27–0.36 on a different-miner pool, 0.12–0.15 fielded);
-   the cross-encoder stays strong **simultaneously** on every
-   pool and every event type. On a **fielded retrieve-then-rerank** pipeline over
-   the full 3.3M-entity universe, end-to-end Hits@1 is **15–30%** (recall-bottlenecked) —
+   within the name-input class the cross-encoder stays strong
+   **simultaneously** on every pool, and the full-record GBM transfers with the
+   best minimum of all. On a **fielded retrieve-then-rerank** pipeline over
+   the full 3.3M-entity universe, end-to-end Hits@1 is **15–33%** (recall-bottlenecked) —
    that is the deployment number, not the curated one.
 5. **Known caveats are quantified, not hidden** (see [Honest caveats](#honest-caveats)):
    the EVENT split is 94.5% absorption, JURIS has only n=88 (directional), GLEIF
@@ -175,12 +176,13 @@ Up to 5 negs/positive if all splits are train, up to 10 if any split is test →
 
 | Method | TIME | EVENT | JURIS | TIME AUROC | EVENT AUROC | JURIS AUROC |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
-| zero-shot E5-small | 0.202 | 0.224 | 0.432 | 0.315 | 0.386 | 0.648 |
-| v2 bi-encoder | 0.249 | 0.292 | 0.500 | 0.405 | 0.457 | 0.694 |
-| **L-6 cross-encoder** (headline) | **0.605** | **0.564** | **0.750** | **0.836** | **0.825** | **0.868** |
-| L-6×L-12 ensemble (best) | 0.700 | 0.677 | 0.784 | — | — | — |
-| *anti-similarity exploit* (curated) | *0.677* | *0.607* | *0.500* | *0.807* | *0.734* | *0.677* |
-| **Fielded end-to-end** (L-6) | **0.15–0.29** | | | | | |
+| zero-shot E5-small | 0.204 | 0.232 | 0.432 | 0.315 | 0.386 | 0.648 |
+| v2 bi-encoder | 0.250 | 0.296 | 0.500 | 0.405 | 0.457 | 0.694 |
+| **L-6 cross-encoder** (headline name-input) | **0.607** | **0.569** | **0.750** | **0.836** | **0.825** | **0.868** |
+| L-6×L-12 ensemble | 0.700 | 0.677 | 0.784 | — | — | — |
+| *anti-similarity exploit* (on-pool only) | *0.700* | *0.638* | *0.516* | *0.807* | *0.734* | *0.677* |
+| **features_gbm-full** (full record, transfers) | **0.783** | **0.753** | **0.881** | 0.929 | 0.912 | 0.893 |
+| **Fielded end-to-end** (L-6 / GBM-full) | **0.15–0.28 / 0.17–0.33** | | | | | |
 
 Three things to read off this table:
 
@@ -188,12 +190,14 @@ Three things to read off this table:
    because the construction makes name similarity anti-predictive. This is the result
    that justifies the benchmark, and it is a property of the *construction*, not a
    universal claim about ER.
-2. **The cross-encoder is the only method that lifts AUROC above 0.8 on TIME/EVENT.**
+2. **Among name-input methods, the cross-encoder is the only one that transfers.**
    Joint encoding asks whether the *differences* between two records look like a
-   lifecycle-event pattern, rather than how similar two strings are.
+   lifecycle-event pattern. Supervised GBMs post higher on-pool AUROC, but the
+   name-only ones collapse off-pool — only the full-record variant transfers.
 3. **Curated Hits@1 is gameable** — the anti-similarity exploit beats the L-6 on
-   TIME/EVENT. The cross-encoder's real claim is being strong *simultaneously* on the
-   curated pool, the alternative-miner pool, the fielded pool, **and** every event type.
+   TIME/EVENT on-pool. Within the name-input class, the cross-encoder's claim is
+   being strong *simultaneously* on all three pools; the full-record GBM shows the
+   remaining headroom is input, not architecture.
 
 ### The exploit collapses off-pool (verified via `gap_checks2.py`)
 
@@ -211,7 +215,7 @@ all of them. (These reproduce the paper's "construction cuts both ways" analysis
 ### Honest caveats
 
 - **In-distribution headline overstates deployment.** Curated 56–61% (TIME/EVENT)
-  drops to **15–30% end-to-end** on a fielded pipeline — the bottleneck is
+  drops to **15–33% end-to-end** on a fielded pipeline — the bottleneck is
   first-stage **bi-encoder Recall@20 (33–50%)**, not the reranker.
 - **"Held-out event type" ≈ "held-out absorption."** The EVENT test set is 94.5%
   absorption; demerger / breakup / spinoff are present but thin (n=42 / 20 / 4). The
