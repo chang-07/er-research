@@ -57,40 +57,33 @@
 We introduce \textsc{Sylvester}, a public benchmark for
 \emph{lifecycle-aware} entity resolution on financial entities:
 matching records across mergers, rebrands, spinoffs, and
-jurisdiction migrations where the surface form has deliberately
-changed. Built from public GLEIF Level-1/2, SEC EDGAR, and Wikidata,
-it provides 125{,}519 labeled pairs over 3.3M entities across three
-held-out evaluation regimes (time, event type, jurisdiction), with a
-three-pool evaluation protocol whose job is to separate methods that
-learn the pool from methods that learn the task: the released pool,
-a pool from an unrelated miner, and candidates retrieved from the
-full universe. The protocol has teeth: the benchmark deliberately mines
-name-similar negatives against name-different positives, and the
-methods that exploit this --- inverted name similarity (64--70\%
-Hits@1 on time/event) and a name-feature GBM (0.73--0.84, the best
-name-input scores we observe) --- collapse on the other two
-pools.
-Among name-input methods, a
-22M-parameter MiniLM cross-encoder is the only one that transfers:
-0.82--0.87 AUROC across the three regimes, 57--61\% Hits@1 on
-time/event ($\pm$2.0--2.3\,pp 95\% CI), 24--35\,pp above the
-strongest bi-encoder, and, under a uniform single-pair protocol,
-above all six zero-shot LLMs tested (four organizations) on the
-two large splits.
-But the binding constraint is the input more than the
-architecture: given the \emph{full} structured registry record
-(liveness, addresses, previous names, dates --- fields no
-name-only method sees), a gradient-boosted matcher transfers
-across every pool, beating the name-input cross-encoder on-pool by
-18\,pp ($p<10^{-4}$) at negligible cost; architecture then
-decides what survives shift --- a cross-encoder over the same
-record ties the trees on curated pools and wins where deployment
-lives, $+12$\,pp retrieval-conditional on the fielded universe
-($p<10^{-4}$), the best we measure. The lifecycle
-signal is in the record; joint encoding keeps most of it under
-pool shift. End-to-end even the best system reaches 21--39\%
-Hits@1 because Recall@20 caps at 33--50\%: the bottleneck is
-retrieval.
+jurisdiction migrations, where the surface form has deliberately
+changed. It is built from public GLEIF Level-1/2, SEC EDGAR, and
+Wikidata, and provides 125{,}519 labeled pairs over 3.3M entities
+across three held-out regimes: time, event type, and jurisdiction. At its center is a three-pool protocol that separates methods that
+learn the benchmark's pool from methods that learn the task, with
+candidates drawn from the released mined pool, an unrelated miner,
+and retrieval over the full universe. This matters because we
+deliberately mine name-similar negatives against name-different
+positives. Two methods do exactly that --- inverted name
+similarity (64--70\% Hits@1
+on time/event) and a gradient-boosted matcher over name features
+(0.73--0.84 Hits@1, the best name-input scores we observe) --- and
+then collapse on the other two pools. Among methods that see only
+names, a 22M-parameter MiniLM cross-encoder is the one that
+transfers: 0.82--0.87 AUROC across the three regimes and 57--61\%
+Hits@1 on time and event ($\pm$2.0--2.3\,pp, 95\% CI), 24--35\,pp
+ahead of the strongest bi-encoder, and, under a uniform single-pair
+protocol, ahead of all six zero-shot LLMs we test. The more useful lesson is about input, not architecture. Given the
+full structured registry record --- addresses, previous names,
+liveness, dates, none of which a name-only method sees --- a gradient-boosted matcher transfers across every pool, beating the name-input cross-encoder on-pool by 18\,pp
+($p<10^{-4}$) at negligible cost. Architecture then decides what
+survives distribution shift: a cross-encoder over that same record
+wins the fielded setting, where deployment lives, by 12\,pp retrieval-conditional ($p<10^{-4}$). The lifecycle signal is in the record, and joint encoding
+preserves most of it. Even so, the best system tops out at 21--39\% Hits@1
+end-to-end, because first-stage retrieval (Recall@20 of 33--50\%)
+surfaces only a fraction of the true successors: the bottleneck is
+finding the candidate, not scoring it.
 \end{abstract}
 
 \keywords{entity resolution, record linkage, financial entities,
@@ -100,33 +93,35 @@ retrieval.
 
 \section{Introduction}
 
-Twitter Inc.\ became X Corp. Facebook became Meta. Sprint was absorbed into
-T-Mobile. Pipelines silently breaking on such transitions is a
-familiar failure mode across fintech engineering, quant research,
-and compliance. The records
-look completely different on the surface --- different legal names, different
-tickers, sometimes different jurisdictions and legal forms --- yet they
-describe the same continuing economic entity.
+Twitter Inc.\ became X Corp. Facebook became Meta. Sprint was
+absorbed into T-Mobile. Pipelines break silently on transitions
+like these, a familiar failure across fintech engineering, quant
+research, and compliance. On the surface the two records share
+almost nothing --- different legal names and tickers, sometimes
+different jurisdictions and legal forms --- yet they describe the
+same continuing economic entity.
 
-Pair-matching ER --- including LLM-based methods that achieve 99\%
-F1 on point-in-time records~\cite{opensanctions2026} --- treats each
-record as a snapshot of identity. Temporal entity-linking benchmarks
-such as TempEL~\cite{tempel2022} address mention-to-KB disambiguation
-against an evolving knowledge base, a different task. Financial KG
-construction~\cite{finreflectkg2025} is single-slice. To the best of our knowledge no public benchmark targets
-the specific question we care about: \emph{given two records observed
-at different times, do they describe the same economic entity,
-accounting for any lifecycle event that may have occurred between
-them?}
+Pair-matching ER treats each record as a snapshot of identity, and
+does so well: recent LLM-based methods reach 99\% F1 on
+point-in-time records~\cite{opensanctions2026}. Adjacent tasks
+differ. Temporal entity-linking benchmarks like
+TempEL~\cite{tempel2022} disambiguate mentions against an evolving
+knowledge base, and financial knowledge-graph
+construction~\cite{finreflectkg2025} works within a single time
+slice. To our knowledge, no public benchmark targets the question
+we care about: \emph{given two records observed at different times,
+do they describe the same economic entity, accounting for any
+lifecycle event that may have occurred between them?}
 
-A natural concern: the benchmark is engineered against name
-similarity --- negatives are mined name-similar while successors
-are, by definition, name-different. This is deliberate, documented,
-and measured: the inverted exploit is its own baseline
-(\S\ref{ssec:anti}). The benchmark asks the discriminative
-sub-problem after a name-aware retriever narrows the field:
-\emph{given a name-similar candidate pool, what identifies the
-true lifecycle successor?} (Figure~\ref{fig:task}.)
+One concern is worth addressing up front. The benchmark is
+engineered against name similarity: negatives are mined to be
+name-similar, while successors are, by definition, name-different.
+This is deliberate, documented, and measured, and we report the
+inverted exploit as its own baseline (\S\ref{ssec:anti}). What the
+benchmark poses is the discriminative sub-problem that remains once
+a name-aware retriever has narrowed the field: \emph{given a
+name-similar candidate pool, what identifies the true lifecycle
+successor?} (Figure~\ref{fig:task}.)
 
 \begin{figure}[t]
   \centering
@@ -207,57 +202,56 @@ true lifecycle successor?} (Figure~\ref{fig:task}.)
         construction choices and their scope documented throughout.
 
   \item \textbf{A three-pool diagnostic, and what it separates}
-        (\S\ref{sec:experiments}): negatives are mined name-similar
-        while positives are name-different by construction --- not a
-        claim about ER generally --- so \emph{inverted} name
-        similarity and a name-feature GBM post the best
-        name-input on-pool scores we observe, then collapse on the
-        two other pools
-        (\S\ref{ssec:anti}). Among name-input methods, a
-        22M-parameter cross-encoder is the only one that transfers
-        (24--35\,pp Hits@1 over the best bi-encoder, above all six
-        zero-shot LLMs on TIME/EVENT; gains concentrated on M\&A
-        and absorption). But given the \emph{full} structured
-        record, a gradient-boosted matcher transfers everywhere too
-        and beats the cross-encoder on-pool by 18\,pp
-        ($p<10^{-4}$), while a cross-encoder over the same record
-        wins the fielded pool by 12\,pp (\S\ref{ssec:anti}). The
-        transferable signal is in the structured record --- no
-        name-only method can recover it --- and joint encoding
-        keeps the most of it under shift.
+        (\S\ref{sec:experiments}): because negatives are mined
+        name-similar while positives are name-different (a property
+        of this benchmark, not of ER in general), inverted name
+        similarity and a name-feature GBM post the best name-input
+        scores we observe on the released pool, then collapse on the
+        other two (\S\ref{ssec:anti}). Among methods that see only
+        names, a 22M-parameter cross-encoder is the one that
+        transfers, beating the best bi-encoder by 24--35\,pp Hits@1 and
+        outscoring all six zero-shot LLMs on TIME and EVENT, with
+        gains on M\&A and absorption. Give a
+        gradient-boosted matcher the \emph{full} structured record,
+        though, and it transfers everywhere too, beating that
+        cross-encoder on-pool by 18\,pp ($p<10^{-4}$); a
+        cross-encoder over the same record then wins the fielded
+        pool by 12\,pp. The transferable signal lives in the
+        structured record, where no name-only method can reach it,
+        and joint encoding preserves the most of it under shift.
 
   \item \textbf{The deployment bottleneck is retrieval, not
-        reranking} (\S\ref{ssec:robustness}): fielded over 3.3M
-        entities, end-to-end Hits@1 falls to 15--39\% because
-        Recall@20 caps at 33--50\%, consistent with the blocking
+        reranking} (\S\ref{ssec:robustness}): in a fielded setting
+        over 3.3M entities, end-to-end Hits@1 falls to 15--39\%.
+        The rerankers are not the problem --- they reach 46--78\%
+        conditional Hits@1 --- but bi-encoder Recall@20 caps at
+        33--50\%, so the true successor often never reaches them.
+        The system breaks at the first stage, echoing the blocking
         literature's focus on candidate
-        generation~\cite{uniblocker2024}. The rerankers themselves
-        are effective (46--78\% conditional Hits@1); the system
-        breaks at the first stage.
+        generation~\cite{uniblocker2024}.
 \end{enumerate}
 
 \section{Related Work}
 
-Classical ER~\cite{fellegisunter1969} matches records via
-similarity over structured fields; modern PLM cross-encoders on
-serialized records (Ditto~\cite{ditto2021},
-GraLMatch~\cite{gralmatch2025}) are now standard, and the
-OpenSanctions Pairs corpus~\cite{opensanctions2026} benchmarks LLM
-matching at 755K pairs --- all under a \emph{snapshot} framing,
-not lifecycle-spanning matches. Temporal record
-linkage~\cite{temporalrl2011} pioneered matching drifting
-entities, pre-dating modern encoders and open registries.
-AnyMatch~\cite{anymatch2024} shows small fine-tuned models rival
-LLM matchers at a fraction of the cost, and WDC
+Classical entity resolution matches records by similarity over
+structured fields~\cite{fellegisunter1969}, and modern PLM
+cross-encoders on serialized records (Ditto~\cite{ditto2021},
+GraLMatch~\cite{gralmatch2025}) are now standard; the OpenSanctions
+Pairs corpus~\cite{opensanctions2026} benchmarks LLM matching at
+755K pairs. All of this work adopts a \emph{snapshot} framing
+rather than lifecycle-spanning matches. Closest in spirit is
+temporal record linkage~\cite{temporalrl2011}, which pioneered
+matching drifting entities but predates modern encoders and open
+registries. AnyMatch~\cite{anymatch2024} shows that small fine-tuned models rival LLM
+matchers at a fraction of the cost, and WDC
 Products~\cite{wdcproducts2024} studies how hard-negative
-construction shapes benchmark difficulty --- the design axis
-\S\ref{ssec:anti} interrogates here. TempEL~\cite{tempel2022}
+construction shapes benchmark difficulty, the axis
+\S\ref{ssec:anti} examines here. Finally, TempEL~\cite{tempel2022}
 time-stratifies entity linking against an evolving Wikipedia, but
-that task is mention-to-KB disambiguation, not record-to-record
-matching over legal entities. Financial-filing knowledge graphs
-(FinReflectKG~\cite{finreflectkg2025}, from this conference) are
-constructed at a single time slice; the lifecycle-bridge question
-is orthogonal.
+its task is mention-to-KB disambiguation rather than
+record-to-record matching over legal entities, and
+financial-filing knowledge graphs (FinReflectKG~\cite{finreflectkg2025},
+from this conference) are built at a single time slice. The lifecycle-bridge question is orthogonal to all of these.
 
 \section{The Sylvester Benchmark}
 \label{sec:benchmark}
@@ -445,6 +439,25 @@ effect --- and half of what unlocks the full-record GBM's transfer
 
 \subsection{Baselines}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig8_llm_panel.pdf}
+  \caption{Zero-shot LLM panel: E[Hits@1] (95\% CIs) for six
+    models under the uniform single-pair protocol, against the
+    fine-tuned L-6 (dashed) and ensemble (dotted;
+    Table~\ref{tab:main_results}). Every LLM trails the L-6 on the
+    two large splits; on JURIS ($n{=}88$) Opus meets it.
+    \texttt{gpt-oss-20b}: 56/52/50-anchor sample.}
+  \Description{Grouped bar chart of expected Hits@1 with 95 percent
+    confidence intervals for six zero-shot large language models
+    across the time, event, and jurisdiction splits, with
+    horizontal reference lines for the fine-tuned cross-encoder and
+    ensemble. Every language model falls below the cross-encoder
+    line on the time and event splits; on the jurisdiction split
+    Opus reaches it.}
+  \label{fig:llm_panel}
+\end{figure}
+
 We compare against four similarity baselines ---
 \texttt{exact\_name} (normalized name equality), \texttt{token\_set}
 (token Jaccard), \texttt{tfidf\_char} (char-3gram TF-IDF cosine),
@@ -465,25 +478,6 @@ organizations cover the full test set (26{,}564 pairs each) ---
 disabled) --- and \textbf{gpt-oss-20b} (a fourth organization) runs
 locally on a 56/52/50-anchor sample
 (Table~\ref{tab:main_results} footnotes).
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/fig8_llm_panel.pdf}
-  \caption{Zero-shot LLM panel: E[Hits@1] (95\% CIs) for six
-    models under the uniform single-pair protocol, against the
-    fine-tuned L-6 (dashed) and ensemble (dotted;
-    Table~\ref{tab:main_results}). Every LLM trails the L-6 on the
-    two large splits; on JURIS ($n{=}88$) Opus meets it.
-    \texttt{gpt-oss-20b}: 56/52/50-anchor sample.}
-  \Description{Grouped bar chart of expected Hits@1 with 95 percent
-    confidence intervals for six zero-shot large language models
-    across the time, event, and jurisdiction splits, with
-    horizontal reference lines for the fine-tuned cross-encoder and
-    ensemble. Every language model falls below the cross-encoder
-    line on the time and event splits; on the jurisdiction split
-    Opus reaches it.}
-  \label{fig:llm_panel}
-\end{figure}
 
 Paired permutation tests on per-anchor expected Hits@1 separate
 the comparisons cleanly: the L-6 beats all five API models on TIME
@@ -619,10 +613,9 @@ hurts $-0.9 / -1.9 / -9.1$\,pp --- consistent with a
 
 
 \paragraph{Backbone size does not break the bi-encoder ceiling.}
-E5-small (33M) $\to$ E5-base (110M) leaves TIME/EVENT unchanged
-($-0.2 / -1.2$\,pp; JURIS $+2.3$): on this one scaling step,
-cosine-close embeddings for lexically-different pairs are not a
-problem more parameters fix.
+Scaling E5-small (33M) to E5-base (110M) leaves TIME/EVENT
+unchanged ($-0.2 / -1.2$\,pp; JURIS $+2.3$): on this step at least,
+the constraint looks structural, not a matter of parameters.
 
 
 \subsection{The construction cuts both ways: an anti-similarity baseline}
@@ -923,27 +916,26 @@ Four diagnostics; full tables ship with the released code.
 \textbf{B-cubed cluster F1}~\cite{binette2024} is 0.92 / 0.90 /
 0.91 for the name+state cross-encoder and 0.94 / 0.93 / 0.94 for
 the full-record one, vs.\ $\leq$0.48 for any bi-encoder
-(which collapse to one giant cluster at the tuned threshold);
-restricted to true clusters of size ${\geq}2$, a more honest
-0.85 / 0.84 / 0.88 (name+state).
-\textbf{Calibration and selective prediction.} ECE (10-bin) 0.20,
-Brier 0.18 for the name+state cross-encoder (0.13 / 0.12
-full-record) --- over-confident in the high-score bin; a
-train-fitted temperature does not fix it, so we report uncalibrated
-scores. A selective-prediction~\cite{geifman2017} sweep on the
-ensemble reaches Hits@1 0.93--0.98 at 20\% coverage and
-0.83--0.98 at 50\%, so high-precision users can threshold.
+(each collapses to one giant cluster at the tuned threshold);
+restricted to true clusters of size ${\geq}2$, 0.85 / 0.84 / 0.88
+(name+state).
+\textbf{Calibration and selective prediction.} ECE (10-bin) is
+0.20 and Brier 0.18 for the name+state cross-encoder (0.13 / 0.12
+full-record); temperature scaling does not fix the high-score
+over-confidence, so we report raw scores. A
+selective-prediction~\cite{geifman2017} sweep on the ensemble
+reaches Hits@1 0.93--0.98 at 20\% coverage and 0.83--0.98 at 50\%,
+so high-precision users can threshold.
 \textbf{Cross-domain transfer.} Zero-shot Magellan
 Walmart-Amazon~\cite{magellan2016}:
 the cross-encoder \emph{loses} to its own zero-shot base encoder
 by 5.9\,pp AUROC. The fine-tuned representation is specialized to
 lifecycle-spanning legal-entity matching, not generic ER.
-\textbf{Label quality, second opinion.} A rule-based re-classifier
---- orthogonal to the primary's event-type evidence, though still
-name-informed --- agrees with it on 98.7\% [95\% CI 97.0--100\%]
-of the 231/277 stratified-sampled positives it judges confidently
-(46 marked uncertain), bounding heuristically detectable label
-noise below 2\% there; human expert review is future work.
+\textbf{Label quality, second opinion.} A rule-based re-classifier,
+orthogonal to the primary's event-type evidence, agrees with it on
+98.7\% [95\% CI 97.0--100\%] of the 231/277 confidently-judged
+positives (46 uncertain), bounding detectable label noise below
+2\%; human review is future work.
 
 \subsection{Where each method is fooled}
 
@@ -1002,19 +994,10 @@ name strings alone is beyond what a 33M encoder reliably does.
 
 \paragraph{Residual JURIS failures cluster on sibling
 consolidation.} Of the 19 / 88 anchors the ensemble mis-ranks on
-JURIS, $\geq$11 are sibling consolidations (7 are ``\texttt{EPIC
-<port> PTE.\ LTD.}'' vessels absorbed into one owner; the model
-returns sibling vessels), plus Japanese-script renames the ASCII
-tokenizer cannot bridge. Multilingual pretraining and
-ownership-graph context would address both.
-
-\subsection{Why this matters in practice}
-
-Merchant embeddings at scale~\cite{stripe_ai}, vendor
-deduplication, and compliance entity backbones all face the
-lifecycle-ER gap after a merger or rebrand; \textsc{Sylvester}
-lets practitioners test for it --- and \S\ref{ssec:anti} says the
-cheapest fix is feeding the matcher the whole record.
+JURIS, at least 11 are sibling consolidations --- the model returns
+a sibling vessel instead of the parent --- plus Japanese-script
+renames the ASCII tokenizer cannot bridge. Multilingual
+pretraining and ownership-graph context would address both.
 
 
 \section{Limitations and Future Work}
