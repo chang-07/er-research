@@ -65,7 +65,7 @@ learn the benchmark's pool from methods that learn the task, with
 candidates drawn from the released mined pool, an unrelated miner,
 and retrieval over the full universe. This matters because we
 deliberately mine name-similar negatives against name-different
-positives. Two methods do exactly that --- inverted name
+positives. Two methods exploit exactly that --- inverted name
 similarity (64--70\% Hits@1
 on time/event) and a gradient-boosted matcher over name features
 (0.73--0.84 Hits@1, the best name-input scores we observe) --- and
@@ -74,9 +74,9 @@ names, a 22M-parameter MiniLM cross-encoder is the one that
 transfers: 0.82--0.87 AUROC across the three regimes and 57--61\%
 Hits@1 on time and event ($\pm$2.0--2.3\,pp, 95\% CI), 24--35\,pp
 ahead of the strongest bi-encoder, and, under a uniform single-pair
-protocol, ahead of all six zero-shot LLMs we test. Input, though, matters as much as architecture. Given the
+protocol, ahead of all six zero-shot LLMs on both splits. Input, though, matters as much as architecture. Given the
 full structured registry record --- addresses, previous names,
-liveness, dates, none of which a name-only method sees --- a gradient-boosted matcher transfers across every pool, beating the name-input cross-encoder on-pool by 18\,pp
+liveness, dates, none of which a name-only method sees --- a gradient-boosted matcher transfers across all three pools, beating the name-input cross-encoder on-pool by 18\,pp
 ($p<10^{-4}$) at negligible cost. Architecture then shapes what
 survives distribution shift: a cross-encoder over that same record
 wins the fielded setting by 12\,pp retrieval-conditional
@@ -97,7 +97,7 @@ finding the candidate, not scoring it.
 Twitter Inc.\ became X Corp. Facebook became Meta. Sprint was
 absorbed into T-Mobile. Pipelines break silently on transitions
 like these, a familiar failure across fintech engineering, quant
-research, and compliance. On the surface the two records share
+research, and compliance. On the surface such records share
 almost nothing --- different legal names and tickers, sometimes
 different jurisdictions and legal forms --- yet they describe the
 same continuing economic entity.
@@ -214,12 +214,12 @@ successor?} (Figure~\ref{fig:task}.)
         outscoring all six zero-shot LLMs on TIME and EVENT, with
         gains on M\&A and absorption. Give a
         gradient-boosted matcher the \emph{full} structured record,
-        though, and it transfers everywhere too, beating that
+        though, and it transfers to all three too, beating that
         cross-encoder on-pool by 18\,pp ($p<10^{-4}$); a
         cross-encoder over the same record then wins the fielded
-        pool by 12\,pp. The transferable signal lives in the
-        structured record, where no name-only method can reach it,
-        and joint encoding preserves the most of it under shift.
+        pool by 12\,pp. Much of the transferable signal sits in
+        the structured record, where no name-only method can reach
+        it, and joint encoding preserves the most of it.
 
   \item \textbf{The deployment bottleneck is retrieval, not
         reranking} (\S\ref{ssec:robustness}): in a fielded setting
@@ -252,7 +252,7 @@ time-stratifies entity linking against an evolving Wikipedia, but
 its task is mention-to-KB disambiguation rather than
 record-to-record matching over legal entities, and
 financial-filing knowledge graphs (FinReflectKG~\cite{finreflectkg2025},
-from this conference) are built at a single time slice. The lifecycle-bridge question is orthogonal to all of these.
+from this conference) are built at a single time slice. None of them poses the lifecycle-bridge question directly.
 
 \section{The Sylvester Benchmark}
 \label{sec:benchmark}
@@ -291,7 +291,7 @@ links: explicit predecessor-LEI $\to$ successor-LEI pairs maintained
 by GLEIF's network of Local Operating Units. The 2026-05-19 snapshot
 contains 50{,}202 records with a non-null \texttt{SuccessorEntity}
 element, 33{,}645 of which resolve to a \texttt{SuccessorLEI}. The
-rest point at successors that never registered an LEI, and we
+rest point to successors that never registered an LEI, and we
 exclude them.
 
 \paragraph{Label quality validation.} A five-class auto-classifier on
@@ -505,8 +505,8 @@ We report per-anchor Hits@1 and MRR alongside pairwise AUROC, and
 ship Hits@3, AUPRC, and threshold-tuned F1 with the released
 metrics. Discrete scorers tie often, so Hits@k and MRR are exact
 \emph{expectations over uniformly random tie-breaking}; a fixed tie
-order is biased. Metrics cover \emph{eligible} anchors, meaning a
-pool of at least two candidates with the gold present. The 37\% of
+order is biased. Per-anchor metrics cover \emph{eligible} anchors: a pool of at
+least two candidates with the gold present. The 37\% of
 predecessors with no mined hard negative leave singleton pools and
 drop out (1{,}612 of 2{,}760 EVENT-test anchors are eligible;
 \S\ref{sec:benchmark}).
@@ -673,8 +673,8 @@ inversion along with the miners' residual signatures, posts the
 best name-only scores in the paper (Table~\ref{tab:main_results};
 above the ensemble at $p<10^{-4}$ on TIME/EVENT), and then
 collapses off-pool just as hard (Figure~\ref{fig:matrix}; on
-JURIS, 0.36 on \textsc{Sylvester-TF-IDF} and 0.12 fielded, at AUROC
-0.54--0.57 and 0.45--0.52).
+JURIS, 0.36 on \textsc{Sylvester-TF-IDF} and 0.12 fielded; AUROC
+across splits 0.54--0.57 and 0.45--0.52).
 
 Is that collapse a fact about feature models, or about what we fed
 this one? It carries two handicaps we can remove, separately and
@@ -687,7 +687,7 @@ previous names, liveness, registration status, dates, registrar;
 the successor fields the labels derive from are excluded) but v1
 negatives, it wins the released pool (0.87 / 0.84) yet still
 fails to cross pools (0.38 / 0.35 on TF-IDF). Given
-\emph{both}, it transfers everywhere and wins
+\emph{both}, it transfers across all three and wins
 (\texttt{features\_gbm-full}): 0.78 / 0.75 on-pool
 ($+18$\,pp over the L-6, $p<10^{-4}$; $+8$\,pp over the
 ensemble), 0.78 / 0.75 on TF-IDF, and 0.51--0.66 fielded
@@ -707,18 +707,18 @@ fields the GBM sees) lands 2--5\,pp behind the trees on-pool
 (0.76 / 0.71, $p\leq0.018$), ties them on TF-IDF
 (0.77 / 0.73), and pulls clearly ahead on the fielded
 pool: 0.64 / 0.66 / 0.78 retrieval-conditional,
-$+12$\,pp over the GBM and $+9$--$18$\,pp over the ensemble (all
-$p<10^{-4}$); best end-to-end in the paper (21--39\%).
+$+12$\,pp over the GBM and $+9$--$18$\,pp over the ensemble
+($p<10^{-4}$ on TIME/EVENT); best end-to-end here (21--39\%).
 
 The claims accordingly split by input class and by pool. Among
 name-input methods --- every LLM, bi-encoder, string baseline,
 and name-feature GBM --- the L-6 is the only one whose worst pool
 stays strong. Given the full record, trees and joint encoding tie
 on curated pools and the cross-encoder wins the fielded universe.
-The transferable signal lives in the structured record: no
+Much of the transferable signal is in the structured record: no
 name-only method, joint attention included, can recover fields it
-was never given. Joint encoding is simply the best way we test of
-holding onto that signal once the distribution shifts.
+was never given. Joint encoding is the best way we test to hold
+onto that signal once the distribution shifts.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
 collapsing under every pool change we test, though on one event
@@ -751,9 +751,9 @@ strings are.
 Aggregate Hits@1 hides large variation across event types.
 
 \paragraph{Held-out time.} Pure renames
-(\texttt{CHANGE\_LEGAL\_NAME}, $n{=}10$) are essentially solved by
+(\texttt{CHANGE\_LEGAL\_NAME}, $n{=}10$) are the easiest slice for
 every similarity-direction method, zero-shot E5-small included
-(0.90 Hits@1, no lift); only the inverted exploit fails them
+(9 of 10, no lift); only the inverted exploit fails them
 (0.11, \S\ref{ssec:anti}). The gains come instead from events
 where the post-event name is inherited from the acquirer and
 string similarity cannot bridge the gap: \texttt{MERGERS\_AND\_ACQUISITIONS} ($n{=}1{,}506$: 0.18
@@ -875,17 +875,17 @@ JURIS. That is the hard ceiling for any reranker. When the bi-encoder
 does retrieve the true successor, the L-6 picks it \#1 with
 46--57\% Hits@1, the ensemble 53--60\%, the full-record GBM
 51--66\% (n.s.\ vs.\ the ensemble) --- and the full-record
-cross-encoder 64--78\%, $+12$\,pp clear of every other reranker
+cross-encoder 64--78\%, $\geq9$\,pp clear of every other reranker
 ($p<10^{-4}$; \S\ref{ssec:anti}).
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6,
 17--30\% for the ensemble, 17--33\% for the full-record GBM, and
 21--39\% for the full-record cross-encoder.
 The drop from in-distribution to deployment confirms rather
-than contradicts \S\ref{ssec:ce}: the bi-encoder's
-fixed-embedding limit, which fails to retrieve lifecycle-spanning
-successors by cosine similarity, is exactly the bottleneck the
-anti-correlation analysis predicts.
+than contradicts \S\ref{ssec:ce}: the bi-encoder's fixed
+embeddings, which cannot retrieve lifecycle-spanning successors by
+cosine similarity, are exactly the bottleneck the anti-correlation
+analysis predicts.
 
 \subsection{Ablations}
 \label{ssec:ablations}
@@ -899,7 +899,7 @@ E5-small (33M) to E5-base (110M) leaves TIME/EVENT unchanged
 ceiling looks structural rather than parametric.
 
 \paragraph{Explicit hard negatives slightly \emph{hurt} the
-bi-encoder} (Table~\ref{tab:main_results}):
+bi-encoder.} In Table~\ref{tab:main_results},
 \texttt{method\_no\_hard} edges out the v1 full model by
 0.4--1.1\,pp Hits@1 on every split, and E5-cosine re-mining does not
 change that. The culprit is the
@@ -936,7 +936,7 @@ lifecycle-spanning legal-entity matching, not generic ER.
 orthogonal to the primary's event-type evidence, agrees with it on
 98.7\% [95\% CI 97.0--100\%] of the 231/277 confidently-judged
 positives (46 uncertain), bounding detectable label noise below
-2\%; human review is future work.
+3\%; human review is future work.
 
 \subsection{Where each method is fooled}
 
@@ -946,8 +946,8 @@ zero-shot E5's score on \texttt{parent\_subsidiary} and
 \texttt{same\_name\_diff\_country} by 40--52\%, but
 \texttt{same\_name\_same\_country} remains a wall at
 $\approx$0.89. The cross-encoder breaks it (0.89 $\to$ 0.43; 0.36
-ensemble) and nearly solves the other name classes (0.91 $\to$
-0.17 / 0.28). The one regression is \texttt{parent\_subsidiary}
+ensemble), and the ensemble nearly solves the other name classes
+(0.91 $\to$ 0.17 / 0.28). The one regression is \texttt{parent\_subsidiary}
 (0.50 $\to$ 0.67 $\to$ 0.75 across bi-encoder, L-6, ensemble):
 the prompt enrichment that injects GLEIF L2 parent/child names
 makes it \emph{worse}. At 99 held-out examples the headline impact
@@ -987,8 +987,8 @@ modeling of corporate-hierarchy relationships.
 We sampled 100 \texttt{method\_full} failures on held-out time:
 66 mixed or other, 19 where anchor and true successor share
 \emph{no} tokens, 8 substring-overlap distractors, and 7 exact
-normalized-name collisions. The no-token cases are hardest for any
-name-input method --- they need world knowledge, graph context, or
+normalized-name collisions. The no-token cases are hardest for
+name-input methods --- they need world knowledge, graph context, or
 the full record (\S\ref{ssec:anti}); Figure~\ref{fig:task}'s
 anchor is representative: resolving ``DB'' to Deutsche Bank from
 name strings alone is beyond what a 33M encoder reliably does.
@@ -1005,9 +1005,9 @@ pretraining and ownership-graph context would address both.
 \label{sec:limitations}
 
 \paragraph{The ``anti-correlation'' finding is a construction
-artifact} of mining name-similar negatives against name-different
-positives (\S\ref{ssec:anti}); it motivates joint encoding here,
-not a universal claim about name similarity in ER.
+artifact.} It follows from mining name-similar negatives against
+name-different positives (\S\ref{ssec:anti}), and motivates joint
+encoding here, not a universal claim about name similarity in ER.
 
 \paragraph{In-distribution headline overstates deployment.}
 The headline Hits@1 is measured on the released pool; end-to-end on
@@ -1028,7 +1028,7 @@ fielded-conditional, both stay within $\approx$4\,pp on TIME/EVENT
 seed still leads the GBM's best fielded by $\approx$8\,pp there.
 Separately, $205/93{,}695 = 0.22\%$ of hard negatives appear in
 GLEIF's \texttt{SuccessorEntity}; dropping them moves results
-$\leq$0.2\,pp of it.
+$\leq$0.2\,pp.
 
 \paragraph{Survivorship bias and thin slices.} GLEIF
 \texttt{SuccessorEntity} is populated voluntarily, which biases
@@ -1041,7 +1041,7 @@ all three splits, but the per-split absolutes should be read with
 those sample sizes in mind. Eligibility itself conditions on a
 name-colliding neighbour existing, which amplifies the construction
 (\S\ref{ssec:metrics}); a 277-pair second-classifier check bounds
-detectable label noise below 2\% (\S\ref{ssec:diagnostics}). Scored against
+detectable label noise below 3\% (\S\ref{ssec:diagnostics}). Scored against
 \emph{random} same-country pools rather than mined ones, the
 marquee supplement
 (283 pairs, 244 anchors) inverts the picture. Token Jaccard reaches
@@ -1096,7 +1096,7 @@ collapse off-pool; among name-input methods, a single 22M-parameter
 cross-encoder survives, staying ahead of every zero-shot LLM we
 test on the two large splits. But input matters as much as
 architecture: boosted trees over the full structured record
-transfer across every pool at negligible cost, and a cross-encoder
+transfer across all three pools at negligible cost, and a cross-encoder
 over that same record holds onto the most signal under shift,
 winning the fielded universe by 12\,pp. Much of the lifecycle
 signal, in the end, is in the record. What remains open is the first stage:
