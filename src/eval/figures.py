@@ -342,7 +342,7 @@ def fig8_llm_panel(data="data", out_dir=OUT_DIR):
         ("llm_sonnet_full",   "Sonnet 4.6",    "#6baed6"),
         ("llm_opus_full",     "Opus 4.7",      "#2171b5"),
         ("llm_gemini_full",   "Gemini 3.1 Pro","#b2df8a"),
-        ("llm_deepseek_full", "DeepSeek V4",   "#fdbf6f"),
+        ("llm_deepseek_full", "DeepSeek V4 Pro","#fdbf6f"),
         ("llm_gptoss_panel",  "gpt-oss-20b",   "#cccccc"),
     ]
     CE  = {"split_time": 0.607, "split_event": 0.569, "split_jurisdiction": 0.750}

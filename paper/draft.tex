@@ -537,7 +537,7 @@ L-6$\times$L-12 ensemble.
     $\pm$2.0 / $\pm$2.3 / $\pm$8.5\,pp. $^{*}$Supervised GBMs (\S\ref{ssec:anti}): the
     name-feature variant and \texttt{anti-token\_set} (\emph{negated}
     similarity) exploit the construction --- the strongest
-    name-input rows here, near-chance off-pool --- while
+    name-input rows here, 2--4$\times$ chance off-pool --- while
     \texttt{features\_gbm-full},
     trained on the cross-encoder's negatives with the full
     structured record, transfers across all three pools
@@ -704,7 +704,7 @@ fielded-conditional, at parity with the L-6).
 Completing the grid: a cross-encoder trained with the identical
 protocol but a serialized \emph{full-record} prompt (the same
 fields the GBM sees) lands 2--5\,pp behind the trees on-pool
-(0.76 / 0.71, $p\leq0.018$), ties them on TF-IDF
+(0.76 / 0.71, $p\leq0.018$), is within 2\,pp on TF-IDF
 (0.77 / 0.73), and pulls clearly ahead on the fielded
 pool: 0.64 / 0.66 / 0.78 retrieval-conditional,
 $+12$\,pp over the GBM and $+9$--$18$\,pp over the ensemble
@@ -721,8 +721,8 @@ was never given. Joint encoding is the best way we test to hold
 onto that signal once the distribution shifts.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
-collapsing under every pool change we test, though on one event
-type it outranks both name-input cross-encoders. On
+collapsing under every pool change we test, though on a few event
+slices it outranks both name-input cross-encoders. On
 \textsc{Sylvester-TF-IDF} it falls to 0.25 / 0.25 / 0.20 Hits@1
 (chance is 0.09) while the cross-encoders hold 0.53--0.66
 (Table~\ref{tab:robustness}); on the
@@ -841,7 +841,7 @@ cell is trn-TF-IDF on the TF-IDF pool.
                              & {\scriptsize $\pm$1.8} & {\scriptsize $\pm$2.1} & {\scriptsize $\pm$10.5} & {\scriptsize $\pm$1.4} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.8} \\
     \midrule
     cross-enc trn-E5        & \textbf{0.601} & \textbf{0.552} & 0.705 & 0.544 & 0.529 & 0.571 \\
-                             & {\scriptsize $\pm$2.2} & {\scriptsize $\pm$2.4} & {\scriptsize $\pm$9.1} & {\scriptsize $\pm$1.8} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.5} \\
+                             & {\scriptsize $\pm$2.2} & {\scriptsize $\pm$2.4} & {\scriptsize $\pm$8.8} & {\scriptsize $\pm$1.8} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.5} \\
     cross-enc trn-TF-IDF    & 0.589 & 0.534 & \textbf{0.750} & \textbf{0.655} & \textbf{0.615} & \textbf{0.640} \\
                              & {\scriptsize $\pm$2.0} & {\scriptsize $\pm$2.4} & {\scriptsize $\pm$9.1} & {\scriptsize $\pm$1.5} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.1} \\
     \midrule
@@ -1052,8 +1052,9 @@ should not be assumed to transfer to unmined candidate
 distributions. Finally, splits are pair-level rather than
 entity-disjoint (32\% / 21\% of time-split test candidates / gold
 successors appear in training pairs; JURIS $<$1\%), though the L-6
-shows no seen-entity advantage (unseen 0.62 vs.\ seen 0.57 on TIME;
-0.57 vs.\ 0.58 on EVENT, n.s.); entity-disjoint splits are a
+shows no seen-entity advantage (unseen 0.62 vs.\ seen 0.57 on TIME,
+$p{=}0.04$ toward unseen; 0.57 vs.\ 0.58 on EVENT, n.s.); disjoint
+splits are a
 stricter future design.
 
 \paragraph{LLM baselines: what the discrete scale hides.} A 0--10
@@ -1062,9 +1063,9 @@ models forfeit 13--48\,pp Hits@1 to within-pool ties. Gemini 3.1 Pro scores ever
 identically on 55\% of TIME anchors, so oracle tie-breaking would
 lift it to 0.72 from the 0.23 we measure --- above our L-6 ---
 whereas Sonnet and Opus collapse only $\approx$5\% of pools, and
-the cross-encoder's continuous scores pay no tie tax at all. Prompt
+the cross-encoder's continuous scores pay a $\leq$0.6\,pp tie tax. Prompt
 format moves results too: batched Sonnet 4.6 scores 0.46 on TIME
-against 0.40 single-pair on the same 56 anchors. The panel
+against 0.39 single-pair on the same 56 anchors. The panel
 therefore bounds what this elicitation format extracts, not what
 these models can do. Finer scales, log-probs, or comparative
 tie-breaks would likely raise them, as would a full-record prompt
