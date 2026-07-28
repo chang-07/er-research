@@ -71,7 +71,7 @@ on time/event) and a gradient-boosted matcher over name features
 (0.73--0.84 Hits@1, the best name-input scores we observe) --- and
 then collapse on the other two pools. Among methods that see only
 names, a 22M-parameter MiniLM cross-encoder is the one that
-transfers: 0.82--0.87 AUROC across the three regimes and 57--61\%
+transfers: 0.83--0.87 AUROC across the three regimes and 57--61\%
 Hits@1 on time and event ($\pm$2.0--2.3\,pp, 95\% CI), 24--35\,pp
 ahead of the strongest bi-encoder, and, under a uniform single-pair
 protocol, ahead of all six zero-shot LLMs on both splits. Input, though, matters as much as architecture. Given the
@@ -304,7 +304,7 @@ delta, jurisdiction, legal form) yields: \texttt{strong\_real}
 filtered out). We retain the first four classes (94.6\%;
 \texttt{ambiguous} stays because every link is still LOU-curated),
 yielding 31{,}817 plausibly-real predecessors (31{,}824 positive
-pairs; some predecessors have multiple successors).
+rows; seven links are duplicated in the source export).
 
 \subsection{Hard negatives}
 
@@ -380,7 +380,7 @@ We present two methods at different cost-accuracy points: a
 bi-encoder (\S\ref{ssec:bi}) that embeds each side independently
 and scores by cosine (cheap), and a cross-encoder
 (\S\ref{ssec:ce}) that reads both records together,
-4--10$\times$ costlier per pair, producing the headline
+$2\times$ costlier per pair, producing the headline
 name-input result.
 
 \subsection{Bi-encoder}
@@ -486,7 +486,7 @@ Paired permutation tests on per-anchor expected Hits@1 separate
 the comparisons cleanly. The L-6 beats all five API models on TIME
 and EVENT at $p<10^{-4}$ ($+15$ to $+37$\,pp). The 88-anchor JURIS
 split is closer: the L-6 leads Haiku, Gemini, and DeepSeek
-($p\leq 0.018$), sits within noise of Sonnet ($p=0.14$), and is
+($p\leq 0.019$), sits within noise of Sonnet ($p=0.14$), and is
 indistinguishable from Opus 4.7, which holds the higher point
 estimate (0.767 vs.\ 0.750, $p=0.74$). The ensemble beats Opus on
 TIME/EVENT ($p<10^{-4}$) and is a coin flip on JURIS. The panel
@@ -606,7 +606,7 @@ hurts $-0.9 / -1.9 / -9.1$\,pp --- consistent with a
     \toprule
     Model & TIME & EVENT & JURIS \\
     \midrule
-    Cross-encoder (L-6, 22M)        & 0.607 [0.587, 0.627] & 0.569 [0.546, 0.592] & 0.750 [0.665, 0.835] \\
+    Cross-encoder (L-6, 22M)        & 0.607 [0.588, 0.629] & 0.569 [0.547, 0.593] & 0.750 [0.659, 0.830] \\
     + enriched prompt               & 0.675 [0.653, 0.697] & 0.642 [0.620, 0.662] & 0.750 [0.659, 0.830] \\
     + Wikidata-LEI positives        & 0.694 [0.669, 0.712] & 0.651 [0.630, 0.673] & 0.773 [0.682, 0.853] \\
     + L-12 backbone (33M)           & 0.697 [0.678, 0.716] & 0.676 [0.657, 0.697] & 0.761 [0.670, 0.841] \\
@@ -722,9 +722,9 @@ onto that signal once the distribution shifts.
 
 The unsupervised exploit shows the same pattern at lower amplitude,
 collapsing under every pool change we test, though on one event
-type it outranks both cross-encoders. On
-\textsc{Sylvester-TF-IDF} it collapses to chance (0.25 / 0.25 /
-0.20 Hits@1) while the cross-encoders hold 0.53--0.66
+type it outranks both name-input cross-encoders. On
+\textsc{Sylvester-TF-IDF} it falls to 0.25 / 0.25 / 0.20 Hits@1
+(chance is 0.09) while the cross-encoders hold 0.53--0.66
 (Table~\ref{tab:robustness}); on the
 fielded pool it drops to 9--18\% (gold-included, as plotted), a
 fraction of the cross-encoder's (\S\ref{ssec:robustness}). Per event it is a
@@ -841,7 +841,7 @@ cell is trn-TF-IDF on the TF-IDF pool.
                              & {\scriptsize $\pm$1.8} & {\scriptsize $\pm$2.1} & {\scriptsize $\pm$10.5} & {\scriptsize $\pm$1.4} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.8} \\
     \midrule
     cross-enc trn-E5        & \textbf{0.601} & \textbf{0.552} & 0.705 & 0.544 & 0.529 & 0.571 \\
-                             & {\scriptsize $\pm$2.2} & {\scriptsize $\pm$2.4} & {\scriptsize $\pm$8.8} & {\scriptsize $\pm$1.8} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.5} \\
+                             & {\scriptsize $\pm$2.2} & {\scriptsize $\pm$2.4} & {\scriptsize $\pm$9.1} & {\scriptsize $\pm$1.8} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.5} \\
     cross-enc trn-TF-IDF    & 0.589 & 0.534 & \textbf{0.750} & \textbf{0.655} & \textbf{0.615} & \textbf{0.640} \\
                              & {\scriptsize $\pm$2.0} & {\scriptsize $\pm$2.4} & {\scriptsize $\pm$9.1} & {\scriptsize $\pm$1.5} & {\scriptsize $\pm$1.7} & {\scriptsize $\pm$7.1} \\
     \midrule
@@ -876,7 +876,7 @@ does retrieve the true successor, the L-6 picks it \#1 with
 46--57\% Hits@1, the ensemble 53--60\%, the full-record GBM
 51--66\% (n.s.\ vs.\ the ensemble) --- and the full-record
 cross-encoder 64--78\%, $\geq9$\,pp clear of every other reranker
-($p<10^{-4}$; \S\ref{ssec:anti}).
+($p<10^{-4}$ on TIME/EVENT; \S\ref{ssec:anti}).
 End-to-end deployment Hits@1 (recall $\times$ conditional,
 un-retrieved truths counted as misses) is 15--28\% for the L-6,
 17--30\% for the ensemble, 17--33\% for the full-record GBM, and
@@ -935,8 +935,8 @@ lifecycle-spanning legal-entity matching, not generic ER.
 \textbf{Label quality, second opinion.} A rule-based re-classifier,
 orthogonal to the primary's event-type evidence, agrees with it on
 98.7\% [95\% CI 97.0--100\%] of the 231/277 confidently-judged
-positives (46 uncertain), bounding detectable label noise below
-3\%; human review is future work.
+positives (46 uncertain), bounding detectable label noise there at
+$\approx$3\%; human review is future work.
 
 \subsection{Where each method is fooled}
 
@@ -1024,8 +1024,8 @@ and the enriched cross-encoder $\pm 0.5/0.3/1.6$\,pp
 (TIME/EVENT/JURIS). The new headline systems are seed-stable: on-pool the full-record
 GBM moves $\leq$0.5\,pp and the cross-encoder 1.2--3.4\,pp;
 fielded-conditional, both stay within $\approx$4\,pp on TIME/EVENT
-(wider on 80-anchor JURIS), and the cross-encoder's \emph{worst}
-seed still leads the GBM's best fielded by $\approx$8\,pp there.
+(wider on 80-anchor JURIS); there the cross-encoder's \emph{worst}
+seed still leads the GBM's best by 8\,pp, narrowing to 2.5 on JURIS.
 Separately, $205/93{,}695 = 0.22\%$ of hard negatives appear in
 GLEIF's \texttt{SuccessorEntity}; dropping them moves results
 $\leq$0.2\,pp.
@@ -1041,7 +1041,7 @@ all three splits, but the per-split absolutes should be read with
 those sample sizes in mind. Eligibility itself conditions on a
 name-colliding neighbour existing, which amplifies the construction
 (\S\ref{ssec:metrics}); a 277-pair second-classifier check bounds
-detectable label noise below 3\% (\S\ref{ssec:diagnostics}). Scored against
+detectable label noise at $\approx$3\% (\S\ref{ssec:diagnostics}). Scored against
 \emph{random} same-country pools rather than mined ones, the
 marquee supplement
 (283 pairs, 244 anchors) inverts the picture. Token Jaccard reaches
@@ -1053,12 +1053,12 @@ distributions. Finally, splits are pair-level rather than
 entity-disjoint (32\% / 21\% of time-split test candidates / gold
 successors appear in training pairs; JURIS $<$1\%), though the L-6
 shows no seen-entity advantage (unseen 0.62 vs.\ seen 0.57 on TIME;
-0.56 vs.\ 0.58 on EVENT, both n.s.); entity-disjoint splits are a
+0.57 vs.\ 0.58 on EVENT, n.s.); entity-disjoint splits are a
 stricter future design.
 
 \paragraph{LLM baselines: what the discrete scale hides.} A 0--10
-rubric caps what ranking can express: models forfeit 13--48\,pp
-Hits@1 to within-pool ties. Gemini 3.1 Pro scores every candidate
+rubric caps what ranking can express: on TIME/EVENT the five API
+models forfeit 13--48\,pp Hits@1 to within-pool ties. Gemini 3.1 Pro scores every candidate
 identically on 55\% of TIME anchors, so oracle tie-breaking would
 lift it to 0.72 from the 0.23 we measure --- above our L-6 ---
 whereas Sonnet and Opus collapse only $\approx$5\% of pools, and
