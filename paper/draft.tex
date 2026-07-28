@@ -74,13 +74,14 @@ names, a 22M-parameter MiniLM cross-encoder is the one that
 transfers: 0.82--0.87 AUROC across the three regimes and 57--61\%
 Hits@1 on time and event ($\pm$2.0--2.3\,pp, 95\% CI), 24--35\,pp
 ahead of the strongest bi-encoder, and, under a uniform single-pair
-protocol, ahead of all six zero-shot LLMs we test. The more useful lesson is about input, not architecture. Given the
+protocol, ahead of all six zero-shot LLMs we test. Input, though, matters as much as architecture. Given the
 full structured registry record --- addresses, previous names,
 liveness, dates, none of which a name-only method sees --- a gradient-boosted matcher transfers across every pool, beating the name-input cross-encoder on-pool by 18\,pp
-($p<10^{-4}$) at negligible cost. Architecture then decides what
+($p<10^{-4}$) at negligible cost. Architecture then shapes what
 survives distribution shift: a cross-encoder over that same record
-wins the fielded setting, where deployment lives, by 12\,pp retrieval-conditional ($p<10^{-4}$). The lifecycle signal is in the record, and joint encoding
-preserves most of it. Even so, the best system tops out at 21--39\% Hits@1
+wins the fielded setting by 12\,pp retrieval-conditional
+($p<10^{-4}$). Much of the lifecycle signal is in the record, and
+joint encoding preserves most of it. Even so, the best system tops out at 21--39\% Hits@1
 end-to-end, because first-stage retrieval (Recall@20 of 33--50\%)
 surfaces only a fraction of the true successors: the bottleneck is
 finding the candidate, not scoring it.
@@ -1094,12 +1095,12 @@ that learn the task. Both sides of it are the story. Name-only
 exploits post the paper's best name-input scores and then
 collapse off-pool; among name-input methods, a single 22M-parameter
 cross-encoder survives, staying ahead of every zero-shot LLM we
-test on the two large splits. But the ceiling is set by the input,
-not the architecture: boosted trees over the full structured record
+test on the two large splits. But input matters as much as
+architecture: boosted trees over the full structured record
 transfer across every pool at negligible cost, and a cross-encoder
 over that same record holds onto the most signal under shift,
-winning the fielded universe by 12\,pp. The lifecycle signal, in the
-end, lives in the record. What remains open is the first stage:
+winning the fielded universe by 12\,pp. Much of the lifecycle
+signal, in the end, is in the record. What remains open is the first stage:
 even the best reranker is capped by 33--50\% retrieval recall, so
 in our fielded simulation it is candidate generation, not matching,
 where lifecycle ER breaks.
