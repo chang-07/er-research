@@ -286,12 +286,13 @@ sources:
 
 \subsection{Positive labels}
 
-Our gold-standard positives are GLEIF \texttt{SuccessorEntity} links: explicit
-predecessor-LEI $\to$ successor-LEI pairs maintained by GLEIF's network of
-Local Operating Units. The 2026-05-19 snapshot contains 50{,}202 records
-with a non-null \texttt{SuccessorEntity} element; 33{,}645 of these have a
-resolvable \texttt{SuccessorLEI} (the rest reference successors that
-never registered an LEI and are excluded).
+Our gold-standard positives are GLEIF \texttt{SuccessorEntity}
+links: explicit predecessor-LEI $\to$ successor-LEI pairs maintained
+by GLEIF's network of Local Operating Units. The 2026-05-19 snapshot
+contains 50{,}202 records with a non-null \texttt{SuccessorEntity}
+element, 33{,}645 of which resolve to a \texttt{SuccessorLEI}. The
+rest point at successors that never registered an LEI, and we
+exclude them.
 
 \paragraph{Label quality validation.} A five-class auto-classifier on
 the successor pairs (using documented event types, normalized name
@@ -326,10 +327,11 @@ four classes:
         long tail when name-exact collisions are sparse.
 \end{itemize}
 
-After deduplication: 253{,}733 candidate (predecessor, hard-negative) pairs
-covering 20{,}192 of 31{,}817 predecessors ($\approx$63\%). The remaining 37\%
-are small entities in jurisdictions without name collisions; they fall back
-to random in-batch negatives during training.
+After deduplication this leaves 253{,}733 candidate
+(predecessor, hard-negative) pairs covering 20{,}192 of 31{,}817
+predecessors, or roughly 63\%. The remaining 37\% are small
+entities in jurisdictions without name collisions, and they fall
+back to random in-batch negatives during training.
 
 \subsection{Evaluation splits}
 \label{ssec:splits}
@@ -499,15 +501,15 @@ on-pool-TIME margins do not, and should be read as directional.
 \subsection{Metrics}
 \label{ssec:metrics}
 
-We report per-anchor Hits@1/MRR and pairwise AUROC; Hits@3,
-AUPRC, and threshold-tuned F1 ship with the released metrics.
-Discrete scorers tie frequently, so Hits@k/MRR are exact
-\emph{expectations over uniformly random tie-breaking} (a fixed
-tie order is biased). Per-anchor metrics cover \emph{eligible}
-anchors --- pool size $\geq 2$ with the gold present; the 37\%
-of predecessors with no mined hard negative have singleton pools
-and are excluded (1{,}612 of 2{,}760 EVENT-test anchors are
-eligible; \S\ref{sec:benchmark}).
+We report per-anchor Hits@1 and MRR alongside pairwise AUROC, and
+ship Hits@3, AUPRC, and threshold-tuned F1 with the released
+metrics. Discrete scorers tie often, so Hits@k and MRR are exact
+\emph{expectations over uniformly random tie-breaking}; a fixed tie
+order is biased. Metrics cover \emph{eligible} anchors, meaning a
+pool of at least two candidates with the gold present. The 37\% of
+predecessors with no mined hard negative leave singleton pools and
+drop out (1{,}612 of 2{,}760 EVENT-test anchors are eligible;
+\S\ref{sec:benchmark}).
 
 \subsection{Headline results}
 \label{ssec:main}
@@ -515,7 +517,7 @@ eligible; \S\ref{sec:benchmark}).
 Table~\ref{tab:main_results} reports test-set metrics across the
 three split regimes for all baselines and method variants on the
 released benchmark pool (\texttt{pairs.parquet}; token-overlap-mined
-negatives); JURIS numbers ($n{=}88$) clear their CI band but are
+negatives). JURIS numbers ($n{=}88$) clear their CI band but stay
 directional. \S\ref{ssec:robustness} retests on a mechanically
 different pool, and Table~\ref{tab:v7} extends the L-6 to the
 L-6$\times$L-12 ensemble.
@@ -614,12 +616,6 @@ hurts $-0.9 / -1.9 / -9.1$\,pp --- consistent with a
 \end{table}
 
 
-\paragraph{Backbone size does not break the bi-encoder ceiling.}
-Scaling E5-small (33M) to E5-base (110M) leaves TIME/EVENT
-unchanged ($-0.2 / -1.2$\,pp; JURIS $+2.3$): on this step at least,
-the constraint looks structural, not a matter of parameters.
-
-
 \subsection{The construction cuts both ways: an anti-similarity baseline}
 \label{ssec:anti}
 
@@ -709,8 +705,8 @@ Completing the grid: a cross-encoder trained with the identical
 protocol but a serialized \emph{full-record} prompt (the same
 fields the GBM sees) lands 2--5\,pp behind the trees on-pool
 (0.76 / 0.71, $p\leq0.018$), ties them on TF-IDF
-(0.77 / 0.73), and pulls decisively ahead where deployment
-lives: 0.64 / 0.66 / 0.78 fielded retrieval-conditional,
+(0.77 / 0.73), and pulls clearly ahead on the fielded
+pool: 0.64 / 0.66 / 0.78 retrieval-conditional,
 $+12$\,pp over the GBM and $+9$--$18$\,pp over the ensemble (all
 $p<10^{-4}$); best end-to-end in the paper (21--39\%).
 
@@ -752,16 +748,15 @@ strings are.
 \subsection{Per-event-type breakdown}
 \label{ssec:per_event}
 
-Aggregate Hits@1 hides large per-event-type variation.
+Aggregate Hits@1 hides large variation across event types.
 
 \paragraph{Held-out time.} Pure renames
 (\texttt{CHANGE\_LEGAL\_NAME}, $n{=}10$) are essentially solved by
-every similarity-direction method including zero-shot E5-small
+every similarity-direction method, zero-shot E5-small included
 (0.90 Hits@1, no lift); only the inverted exploit fails them
-(0.11, \S\ref{ssec:anti}).
-The headline gains come from the events where the post-event name
-comes from the acquirer and string similarity cannot bridge the
-gap: \texttt{MERGERS\_AND\_ACQUISITIONS} ($n{=}1{,}506$: 0.18
+(0.11, \S\ref{ssec:anti}). The gains come instead from events
+where the post-event name is inherited from the acquirer and
+string similarity cannot bridge the gap: \texttt{MERGERS\_AND\_ACQUISITIONS} ($n{=}1{,}506$: 0.18
 zero-shot $\to$ 0.62 L-6 $\to$ 0.71 ensemble; the inverted
 exploit's best slice, 0.74, \S\ref{ssec:anti}) and
 \texttt{ABSORPTION} ($n{=}461$: 0.24 $\to$ 0.54 $\to$ 0.65). The
@@ -898,6 +893,10 @@ anti-correlation analysis predicts.
 \paragraph{State features help modestly.} Ablating jurisdiction and
 legal form from the prompt costs 1.1--1.8\,pp Hits@1 on every split,
 most on held-out event type and least on held-out jurisdiction.
+Scale does not substitute: moving the bi-encoder backbone from
+E5-small (33M) to E5-base (110M) leaves TIME/EVENT unchanged
+($-0.2 / -1.2$\,pp; JURIS $+2.3$), so on this step at least the
+ceiling looks structural rather than parametric.
 
 \paragraph{Explicit hard negatives slightly \emph{hurt} the
 bi-encoder} (Table~\ref{tab:main_results}):
@@ -906,9 +905,9 @@ bi-encoder} (Table~\ref{tab:main_results}):
 change that. The culprit is the
 \texttt{token\_overlap\_same\_country} class, 92\% of mined v1
 negatives and the lowest-precision one; in-batch negatives from
-MultipleNegativesRanking are cleaner on their own. So better
-explicit negatives do not always help contrastive training --- but
-they are exactly what the cross-encoder needs
+MultipleNegativesRanking are cleaner on their own. Better explicit
+negatives, in other words, do not always help contrastive training,
+even though they are exactly what the cross-encoder needs
 (\S\ref{ssec:hard_negs}).
 
 \subsection{Additional diagnostics}
@@ -941,9 +940,9 @@ positives (46 uncertain), bounding detectable label noise below
 
 \subsection{Where each method is fooled}
 
-Table~\ref{tab:neg_class} reports per-negative-class mean score
-(higher $=$ more often fooled). Bi-encoders cut zero-shot E5's score
-on \texttt{parent\_subsidiary} and
+Table~\ref{tab:neg_class} reports the mean score per negative
+class, where higher means more often fooled. Bi-encoders cut
+zero-shot E5's score on \texttt{parent\_subsidiary} and
 \texttt{same\_name\_diff\_country} by 40--52\%, but
 \texttt{same\_name\_same\_country} remains a wall at
 $\approx$0.89. The cross-encoder breaks it (0.89 $\to$ 0.43; 0.36
@@ -985,10 +984,10 @@ modeling of corporate-hierarchy relationships.
 \subsection{Error analysis}
 \label{ssec:err}
 
-Of 100 sampled \texttt{method\_full} failures on held-out time:
-66 mixed/other, 19 where anchor and true successor share \emph{no}
-tokens, 8 substring-overlap distractors, 7 exact normalized-name
-collisions. The no-shared-token cases are the hardest for any
+We sampled 100 \texttt{method\_full} failures on held-out time:
+66 mixed or other, 19 where anchor and true successor share
+\emph{no} tokens, 8 substring-overlap distractors, and 7 exact
+normalized-name collisions. The no-token cases are hardest for any
 name-input method --- they need world knowledge, graph context, or
 the full record (\S\ref{ssec:anti}); Figure~\ref{fig:task}'s
 anchor is representative: resolving ``DB'' to Deutsche Bank from
