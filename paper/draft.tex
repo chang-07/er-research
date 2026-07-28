@@ -805,18 +805,18 @@ about spinoffs.
 \subsection{Robustness to candidate-pool shift}
 \label{ssec:robustness}
 
-The headline cross-encoder result is trained and (mostly) evaluated against
-candidates from the same family of hard-negative miners --- v1
-token-overlap and v2 E5-cosine both rank candidates by name-related signals,
-and the cross-encoder trains on E5-cosine negs. The obvious question: does the gap
-survive an evaluation pool built with a mechanically different
-miner, or is the headline number partly an artifact of how the
-negatives were chosen?
+The headline cross-encoder is trained and, mostly, evaluated
+against candidates from one family of hard-negative miners: v1
+token-overlap and v2 E5-cosine both rank by name-related signals,
+and the cross-encoder trains on the E5-cosine set. So the obvious
+question is whether the gap survives an evaluation pool built with
+a mechanically different miner, or whether the headline number is
+partly an artifact of how the negatives were chosen.
 
 \paragraph{Setup.} We re-mine hard negatives with sparse
-char-3gram TF-IDF cosine --- no learned representation, no shared
-parameters with E5 --- holding the other three classes, splits, and
-positives constant (\textsc{Sylvester-TF-IDF}). We train
+char-3gram TF-IDF cosine, which has no learned representation and
+shares no parameters with E5, holding the other three classes,
+splits, and positives constant (\textsc{Sylvester-TF-IDF}). We train
 cross-encoders on the E5-cosine negatives (trn-E5) and the TF-IDF
 negatives (trn-TF-IDF) and score each on both pools. The released
 pool's negatives are token-overlap-mined, so the headline
