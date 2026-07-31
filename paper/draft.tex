@@ -5,8 +5,14 @@
 % For arXiv/NeurIPS version, swap document class back to article (see
 % draft_article.tex.bak for the pre-swap version).
 
-\documentclass[sigconf,nonacm=true,authorversion]{acmart}
+% SUBMISSION MODE (ICAIF '26 double-blind). For camera-ready:
+% restore [sigconf] (drop anonymous), \setcopyright per ACM form.
+\documentclass[sigconf,anonymous]{acmart}
 \settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\acmConference[ICAIF '26]{7th ACM International Conference on AI in
+  Finance}{November 14--17, 2026}{Milan, Italy}
 
 \usepackage{booktabs}
 \usepackage{needspace}
@@ -49,7 +55,7 @@
   \city{London, Ontario}\country{Canada}}
 \email{sli3244@uwo.ca}
 
-\renewcommand{\shortauthors}{Li}
+\renewcommand{\shortauthors}{Anon.~submission}  % camera-ready: Li
 
 \begin{document}
 
@@ -1105,9 +1111,10 @@ even the best reranker is capped by 33--50\% retrieval recall, so
 in our fielded simulation it is candidate generation, not matching,
 where lifecycle ER breaks.
 
+% camera-ready: restore https://github.com/chang-07/er-research
 \paragraph{Reproducibility.} Code (MIT), data (CC-BY-4.0),
-parsers, predictions, trained weights, and a datasheet:
-\url{https://github.com/chang-07/er-research}; archival DOI on
+parsers, predictions, trained weights, and a datasheet ship in an
+anonymized repository linked at submission; archival DOI on
 acceptance. Every non-LLM result reproduces from raw GLEIF in
 $\approx$2 hours on one MacBook.
 
