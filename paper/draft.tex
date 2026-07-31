@@ -64,34 +64,58 @@ We introduce \textsc{Sylvester}, a public benchmark for
 \emph{lifecycle-aware} entity resolution on financial entities:
 matching records across mergers, rebrands, spinoffs, and
 jurisdiction migrations, where the surface form has deliberately
-changed. It is built from public GLEIF Level-1/2, SEC EDGAR, and
-Wikidata, and provides 125{,}519 labeled pairs over 3.3M entities
+changed. Built from public GLEIF Level-1/2, SEC EDGAR, and
+Wikidata, it provides 125{,}519 labeled pairs over 3.3M entities
 across three held-out regimes: time, event type, and jurisdiction. At its center is a three-pool protocol that separates methods that
 learn the benchmark's pool from methods that learn the task.
 Candidates come from the released mined pool, an unrelated miner,
-and retrieval over the full universe. This matters because we
-deliberately mine name-similar negatives against name-different
+and retrieval over the full universe. We deliberately mine
+name-similar negatives against name-different
 positives. Two methods exploit exactly that --- inverted name
 similarity (64--70\% Hits@1
 on time/event) and a gradient-boosted matcher over name features
-(0.73--0.84 Hits@1, the best name-input scores we observe) --- and
-then collapse on the other two pools. Among methods that see only
-names, a 22M-parameter MiniLM cross-encoder is the one that
+(0.73--0.84 Hits@1, our best name-input scores) --- then
+collapse on the other two pools. Among name-only
+methods, a 22M-parameter MiniLM cross-encoder is the one that
 transfers: 0.83--0.87 AUROC across the three regimes and 57--61\%
 Hits@1 on time and event ($\pm$2.0--2.3\,pp, 95\% CI), 24--35\,pp
 ahead of the strongest bi-encoder, and, under a uniform single-pair
-protocol, ahead of all six zero-shot LLMs on both splits. Input, though, matters as much as architecture. Given the
+protocol, ahead of all six zero-shot LLMs on both splits. Input matters as much as architecture. Given the
 full structured registry record --- addresses, previous names,
-liveness, dates, none of which a name-only method sees --- a gradient-boosted matcher transfers across all three pools, beating the name-input cross-encoder on-pool by 18\,pp
-($p<10^{-4}$) at negligible cost. Architecture then shapes what
+liveness, dates --- a gradient-boosted matcher transfers across all three pools, beating the name-input cross-encoder on-pool by 18\,pp
+($p<10^{-4}$) at negligible cost. Architecture shapes what
 survives distribution shift: a cross-encoder over that same record
 wins the fielded setting by 12\,pp retrieval-conditional
 ($p<10^{-4}$). Much of the lifecycle signal is in the record, and
-joint encoding preserves most of it. Even so, the best system tops out at 21--39\% Hits@1
-end-to-end, because first-stage retrieval (Recall@20 of 33--50\%)
-surfaces only a fraction of the true successors: the bottleneck is
+joint encoding preserves most of it. Even so, the best system reaches only 21--39\% Hits@1
+end-to-end: first-stage retrieval (Recall@20 of 33--50\%)
+misses most true successors --- the bottleneck is
 finding the candidate, not scoring it.
 \end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10002951.10002952.10003219.10003223</concept_id>
+<concept_desc>Information systems~Entity resolution</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010257</concept_id>
+<concept_desc>Computing methodologies~Machine learning</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10010405.10010455.10010460</concept_id>
+<concept_desc>Applied computing~Economics</concept_desc>
+<concept_significance>100</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Information systems~Entity resolution}
+\ccsdesc[300]{Computing methodologies~Machine learning}
+\ccsdesc[100]{Applied computing~Economics}
 
 \keywords{entity resolution, record linkage, financial entities,
   lifecycle events, GLEIF, benchmark, cross-encoder}
@@ -594,7 +618,7 @@ Hits@1 $+9$ to $+11$\,pp on time/event ($+3$ on jurisdiction,
 inside its CI; Table~\ref{tab:v7}); baseline comparisons keep the
 single L-6 apples-to-apples. One
 negative result: symmetric scoring (averaging $s(a,b)$, $s(b,a)$)
-hurts $-0.9 / -1.9 / -9.1$\,pp --- consistent with a
+hurts $-0.9/{-}1.9/{-}9.1$\,pp --- consistent with a
 \emph{directional} predecessor$\to$successor representation
 (the TIME delta sits within its CI).
 
