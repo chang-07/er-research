@@ -67,8 +67,8 @@ jurisdiction migrations, where the surface form has deliberately
 changed. It is built from public GLEIF Level-1/2, SEC EDGAR, and
 Wikidata, and provides 125{,}519 labeled pairs over 3.3M entities
 across three held-out regimes: time, event type, and jurisdiction. At its center is a three-pool protocol that separates methods that
-learn the benchmark's pool from methods that learn the task, with
-candidates drawn from the released mined pool, an unrelated miner,
+learn the benchmark's pool from methods that learn the task.
+Candidates come from the released mined pool, an unrelated miner,
 and retrieval over the full universe. This matters because we
 deliberately mine name-similar negatives against name-different
 positives. Two methods exploit exactly that --- inverted name
@@ -102,8 +102,7 @@ finding the candidate, not scoring it.
 
 Twitter Inc.\ became X Corp. Facebook became Meta. Sprint was
 absorbed into T-Mobile. Pipelines break silently on transitions
-like these, a familiar failure across fintech engineering, quant
-research, and compliance. On the surface such records share
+like these, a familiar failure across many industries. On the surface such records share
 almost nothing --- different legal names and tickers, sometimes
 different jurisdictions and legal forms --- yet they describe the
 same continuing economic entity.
@@ -1097,7 +1096,7 @@ future work.
 entity resolution on financial entities, built entirely from
 public GLEIF, SEC EDGAR, and Wikidata data around a three-pool
 protocol that separates methods which learn the pool from methods
-that learn the task. Both sides of it are the story. Name-only
+that learn the task. Name-only
 exploits post the paper's best name-input scores and then
 collapse off-pool; among name-input methods, a single 22M-parameter
 cross-encoder survives, staying ahead of every zero-shot LLM we
