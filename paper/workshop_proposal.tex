@@ -1,0 +1,156 @@
+% ICAIF '26 Workshop Proposal — max 5 pages, 12pt, single PDF
+% Submit via CMT3 "Workshop Proposals" track by July 19, 2026 23:59 AoE
+\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\setlist{nosep}
+
+\title{\textbf{Workshop Proposal: Entity-Centric AI in Finance\\
+\large Identity, Linkage, and Lifecycle Dynamics of Financial Entities}}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-3em}
+
+\section{Workshop Topic and Title}
+
+\textbf{Title:} \emph{The 1st Workshop on Entity-Centric AI in Finance
+(WECAIF)} \hfill \textbf{Duration:} half day
+
+Nearly every AI system in financial services rests on a layer that
+receives far less research attention than the models above it: knowing
+\emph{which real-world entity} a record refers to. Merchant and
+counterparty resolution in payments, KYC/AML screening, vendor and
+invoice deduplication, portfolio-company tracking, and financial
+knowledge-graph construction all depend on entity identity --- and all
+break in characteristic ways when entities merge, rebrand, spin off,
+or migrate jurisdictions. This workshop convenes the researchers and
+practitioners working on that layer: entity resolution and record
+linkage for financial data, corporate-hierarchy and ownership graphs,
+temporal/lifecycle dynamics of entities, open identifier
+infrastructure (LEI, CIK, ISIN, OpenCorporates), and the emerging role
+of LLMs as entity matchers and enrichers. The scope is squarely AI in
+financial services: methods, benchmarks, datasets, and deployed-system
+reports.
+
+\section{Motivation}
+
+Three developments make this topic timely for the ICAIF community.
+
+\textbf{(i) Entity work has quietly become an LLM evaluation
+frontier.} Recent large-scale studies of LLM-based entity matching
+report near-saturated performance on classical point-in-time
+benchmarks, while newly released lifecycle-aware benchmarks built on
+open regulatory data (GLEIF, SEC EDGAR) show frontier models trailing
+small fine-tuned encoders under uniform protocols. Reconciling these
+findings --- what entity tasks are actually solved, which remain open,
+and how evaluation design shapes the answer --- is exactly the kind of
+methods-and-measurement conversation a focused workshop enables.
+
+\textbf{(ii) Open identity infrastructure has reached critical mass.}
+GLEIF's LEI corpus (3.3M+ entities, CC0, with structured lifecycle
+events and relationship records), EDGAR, and Wikidata now support
+fully reproducible research on problems that were previously locked
+inside proprietary vendor datasets. A workshop can accelerate the
+formation of shared benchmarks and data standards around this
+infrastructure.
+
+\textbf{(iii) Practitioner demand.} Entity mastering is a named
+production concern at payment processors, spend-management platforms,
+market-data vendors, and compliance teams, yet the practitioner and
+academic communities rarely share a venue. ICAIF is the natural home
+for that exchange; no prior ICAIF workshop has focused on the entity
+layer (\S6).
+
+The workshop aims to produce: a clearer map of open problems in
+financial-entity intelligence, seeds for shared benchmarks and
+evaluation protocols (including lifecycle-aware and
+retrieval-grounded evaluation), and new academic--industry
+collaborations.
+
+\section{Organizing Committee}
+
+% [TO FILL — names, affiliations, emails, 3–5 line bios each.
+%  Reviewers weigh organizational experience heavily: include at least
+%  two senior members with prior workshop organization if possible.]
+
+\begin{itemize}
+  \item \textbf{[Faculty co-chair — TO FILL]}, [affiliation, email].
+        [Bio highlighting relevant research and any prior
+        workshop/conference organization.] \emph{(primary contact)}
+  \item \textbf{Sheng Chang Li}, Western University,
+        \texttt{sli3244@uwo.ca}. Author of \textsc{Sylvester}, an open
+        benchmark and method for lifecycle-aware entity resolution on
+        GLEIF/EDGAR/Wikidata data (under review, ICAIF '26); builds
+        entity-linkage tooling for brokerage-account data at
+        SnapTrade. [Adjust/extend.]
+  \item \textbf{[Senior co-organizer 2 — TO FILL]} --- ideally an
+        industry researcher owning an entity-mastering system.
+  \item \textbf{[Senior co-organizer 3 — TO FILL]} --- ideally a
+        data-management/ER academic for cross-community reach.
+\end{itemize}
+
+\section{Tentative Program Committee and Invited Speakers}
+
+% [TO FILL — the selection committee explicitly scores "quality of
+%  proposed invited speakers". List only people you genuinely intend
+%  to invite; mark confirmed vs. contacted vs. candidate.]
+
+\textbf{Keynote candidates (to be confirmed):}
+\begin{itemize}
+  \item [Candidate A — e.g., a GLEIF or open-identifier-infrastructure
+        leader, for the data/infrastructure perspective]
+  \item [Candidate B — e.g., an author of large-scale LLM
+        entity-matching studies, for the methods perspective]
+\end{itemize}
+
+\textbf{Invited talk candidates:} [3--4 names spanning: a production
+entity-mastering system (payments or market data), financial
+knowledge graphs, temporal entity linking, compliance/AML screening.]
+
+\textbf{Tentative program committee:} [10--15 names across ER/data
+management, NLP/IE, and quantitative finance; mix of academia and
+industry. TO FILL.]
+
+\section{Tentative Schedule and Format}
+
+Half-day (four hours), hybrid-friendly but presented in person:
+
+\begin{itemize}
+  \item 00:00--00:10 \quad Opening: the entity layer in financial AI
+  \item 00:10--00:45 \quad Keynote 1 (infrastructure/data)
+  \item 00:45--01:45 \quad Contributed papers I (4 talks, 15 min each)
+  \item 01:45--02:15 \quad Coffee + poster session
+  \item 02:15--02:50 \quad Keynote 2 (methods/LLMs)
+  \item 02:50--03:35 \quad Contributed papers II (3 talks, 15 min each)
+  \item 03:35--04:00 \quad Panel: ``What would it take for a shared
+        financial-entity benchmark suite?'' (keynotes + organizers +
+        one PC member)
+\end{itemize}
+
+Contributions: short (4pp) and full (8pp) non-archival papers via a
+lightweight CMT/OpenReview instance run by the organizers; posters for
+work-in-progress and industry abstracts. The organizers will run the
+call for papers, review (2 reviews per submission), and acceptance
+decisions, and will maintain the workshop website.
+
+\section{Comparable Workshops}
+
+Finance-focused NLP and ML workshops --- e.g., the long-running
+FinNLP series and AAAI's Knowledge Discovery from Financial Data
+lineage, as well as ICAIF's own prior workshops on LLMs and
+generative AI in finance --- have repeatedly featured entity-adjacent
+papers (NER, KG construction, document intelligence), demonstrating
+community supply. However, none centers the entity-identity layer
+itself: resolution, linkage, lifecycle dynamics, and identifier
+infrastructure. In the data-management community, ER workshops exist
+but lack the financial-domain focus and practitioner participation
+ICAIF provides. WECAIF is proposed as a new series (not a
+continuation) occupying that intersection; its differentiation is the
+exclusive focus on entity identity in financial services and its
+benchmark/data-standards agenda.
+
+\end{document}
