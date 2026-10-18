@@ -37,14 +37,9 @@
   con-cen-trat-ed
 }
 
-% snake_case identifiers (same_name_same_country, ...) are single
-% unbreakable tokens in a sigconf column and force maximally loose
-% lines around them. Permit a break after each underscore; no hyphen
-% is inserted, which is the usual convention for identifiers.
-\let\sylvesterunderscore\_
-\renewcommand{\_}{\sylvesterunderscore\allowbreak}
 
-\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=blue}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=blue,
+  pdfauthor={Sheng Chang Li}}
 
 \title{Sylvester: A Benchmark and Empirical Study of
   Lifecycle-Aware Entity Resolution on Open Financial Data}
@@ -81,7 +76,7 @@ similarity, 64--70\% Hits@1 on time/event; a name-feature
 gradient-boosted matcher, 0.73--0.84) collapse off-pool. Among
 name-only methods, a 22M-parameter cross-encoder transfers
 (57--61\% Hits@1 on time and event), 24--35\,pp ahead of the best
-bi-encoder and ahead of six zero-shot LLMs. Input matters as much
+bi-encoder and ahead of six zero-shot LLMs on both. Input matters as much
 as architecture: given the full registry record, a gradient-boosted
 matcher beats that cross-encoder on-pool by 18\,pp, and a
 cross-encoder over the same record wins the fielded setting by
@@ -121,6 +116,7 @@ bottleneck is finding the candidate, not scoring it.
 \maketitle
 
 \section{Introduction}
+\label{sec:intro}
 
 Twitter Inc.\ became X Corp. Facebook became Meta. Sprint was
 absorbed into T-Mobile. Each pair shares almost nothing on the
@@ -138,8 +134,8 @@ where a renamed or absorbed entity must still match.
 Reference-data teams maintain security masters and corporate-action
 histories, and researchers need the same links to build firm-level
 panels free of survivorship bias. The costly error is the same in
-each case: one entity treated as two, or a successor never found,
-and pipelines that make it fail silently.
+each case (one entity treated as two, or a successor never found),
+and it fails silently.
 
 \paragraph{Why it is hard.} Snapshot entity resolution (ER) relies
 on surface similarity and does it well: LLM matchers reach 99\% F1
@@ -168,7 +164,7 @@ existing ER benchmarks are snapshot-framed (\S\ref{sec:related}).
 
 \paragraph{This paper.} We build that benchmark and use it for an
 empirical study. The models are standard on purpose: string
-baselines, gradient-boosted matchers, off-the-shelf sentence-encoder
+baselines, gradient-boosted matchers, standard sentence-encoder
 bi- and cross-encoders, and six zero-shot LLMs. The contribution is
 the benchmark and what it reveals. One design choice shapes the
 results: negatives are mined name-similar while successors are
@@ -224,8 +220,8 @@ candidate pools and judge it by its worst.
         a gradient-boosted matcher over it beats that cross-encoder
         on-pool by 18\,pp, and a cross-encoder over it wins the
         fielded pool by 12\,pp. Retrieval, not reranking, is the
-        deployment bottleneck: Recall@20 of 33--50\% caps end-to-end
-        Hits@1 at 21--39\%, echoing the blocking literature's focus
+        deployment bottleneck: Recall@20 of 33--50\% limits the best
+        system to 21--39\% end-to-end Hits@1, echoing the blocking literature's focus
         on candidate generation~\cite{uniblocker2024}.
 \end{enumerate}
 
@@ -389,8 +385,8 @@ headline evaluation.
 \section{Models}
 \label{sec:method}
 
-The neural models are standard sentence encoders, used off the
-shelf so that results speak to the benchmark rather than to a new
+The neural models are standard sentence encoders, fine-tuned
+without architectural changes so that results speak to the benchmark rather than to a new
 architecture. A bi-encoder (\S\ref{ssec:bi}) embeds each side
 independently and scores by cosine, which suits retrieval. A
 cross-encoder (\S\ref{ssec:ce}) reads both records jointly, which
@@ -448,7 +444,7 @@ nothing (\S\ref{ssec:ablations}).
 \section{Experiments}
 \label{sec:experiments}
 
-The analyses follow the challenges in \S1: whether methods exploit
+The analyses follow the challenges in \S\ref{sec:intro}: whether methods exploit
 the name-similar pool (\S\ref{ssec:anti}, \S\ref{ssec:robustness}),
 how they handle skewed event types (\S\ref{ssec:per_event}), and
 whether they survive retrieval at registry scale
@@ -1015,8 +1011,10 @@ sparse--dense retrieval, or a pre-filtered shortlist) is the
 highest-leverage future work.
 
 \paragraph{Generalization evidence is narrow.} The held-out-event
-test set is 94.5\% absorption, so EVENT results show transfer to
-absorption, not to spinoffs or breakups (\S\ref{ssec:per_event}).
+test set is 94.5\% absorption, so EVENT results mainly show
+transfer to absorption; the spinoff, demerger, and breakup slices
+($n{=}4$--42) are too small to support a claim
+(\S\ref{ssec:per_event}).
 The jurisdiction test has 88 eligible anchors ($\pm$8.5\,pp CI), so
 JURIS results are directional. GLEIF \texttt{SuccessorEntity} is
 filed voluntarily, which biases positives toward well-counseled
@@ -1038,7 +1036,7 @@ cross-vendor gaps may partly reflect exposure to GLEIF-derived text.
 
 \paragraph{Smaller caveats.} Over three seeds the bi-encoder and
 enriched cross-encoder vary $\leq$1.6\,pp and the full-record models
-$\leq$3.4\,pp on-pool; fielded, the full-record cross-encoder's
+$\leq$3.4\,pp on-pool; fielded-conditional, the full-record cross-encoder's
 worst seed still leads the GBM's best by 8\,pp on TIME/EVENT. Of
 the hard negatives, 0.22\% appear in GLEIF's
 \texttt{SuccessorEntity}; dropping them moves results
