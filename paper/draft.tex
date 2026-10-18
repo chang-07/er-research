@@ -75,7 +75,7 @@ full universe. Methods that exploit the construction (inverted name
 similarity, 64--70\% Hits@1 on time/event; a name-feature
 gradient-boosted matcher, 0.73--0.84) collapse off-pool. Among
 name-only methods, a 22M-parameter cross-encoder transfers
-(57--61\% Hits@1 on time and event), 24--35\,pp ahead of the best
+(57--61\% Hits@1 on time and event), 27--35\,pp ahead of the best
 bi-encoder and ahead of six zero-shot LLMs on both. Input matters as much
 as architecture: given the full registry record, a gradient-boosted
 matcher beats that cross-encoder on-pool by 18\,pp, and a
@@ -176,7 +176,7 @@ candidate pools and judge it by its worst.
 
 \begin{figure}[t]
   \centering
-  % Pre-rendered from figures/fig1_task_src.tex (TikZ is not TAPS-accepted).
+  % Pre-rendered from figure_src/fig1_task.tex (TikZ is not TAPS-accepted).
   \includegraphics{figures/fig1_task.pdf}
   \caption{The task. \emph{Top:} a real held-out-time test anchor
     (4 of 7 candidates; bars $=$ token Jaccard). Name similarity
@@ -214,7 +214,7 @@ candidate pools and judge it by its worst.
 
   \item \textbf{Empirical findings} (\S\ref{sec:experiments}):
         among name-only methods, a 22M-parameter cross-encoder is the
-        one that transfers, 24--35\,pp Hits@1 ahead of the best
+        one that transfers, 27--35\,pp Hits@1 ahead of the best
         bi-encoder and ahead of six zero-shot LLMs on TIME and EVENT.
         The full structured record matters as much as architecture:
         a gradient-boosted matcher over it beats that cross-encoder
@@ -254,7 +254,7 @@ from this conference) are built at a single time slice. None of them poses the l
 \subsection{Data sources}
 \label{ssec:sources}
 
-We construct \textsc{Sylvester} entirely from open, persistently-licensed
+We construct \textsc{Sylvester} entirely from open, permissively licensed
 sources:
 
 \begin{itemize}
@@ -555,7 +555,7 @@ are directional throughout.
     \texttt{token\_set}             & 0.193 & 0.136 & 0.319 & 0.266 & 0.180 & 0.356 & 0.323 & 0.356 & 0.522 \\
     \texttt{tfidf\_char}            & 0.277 & 0.180 & 0.360 & 0.349 & 0.213 & 0.386 & 0.568 & 0.420 & 0.583 \\
     \texttt{sentence\_encoder}      & 0.315 & 0.204 & 0.385 & 0.386 & 0.232 & 0.408 & 0.648 & 0.432 & 0.587 \\
-    \texttt{anti-token\_set} ($1{-}$Jaccard) & 0.807 & 0.700 & 0.761 & 0.734 & 0.638 & 0.715 & 0.677 & 0.516 & 0.618 \\
+    \texttt{anti-token\_set} ($1{-}$Jaccard)$^{*}$ & 0.807 & 0.700 & 0.761 & 0.734 & 0.638 & 0.715 & 0.677 & 0.516 & 0.618 \\
     \texttt{features\_gbm} (supervised)$^{*}$ & 0.935 & 0.772 & 0.840 & 0.926 & 0.734 & 0.816 & 0.960 & 0.835 & 0.897 \\
     \texttt{features\_gbm-full} (full record)$^{*}$ & 0.929 & 0.783 & 0.860 & 0.912 & 0.753 & 0.838 & 0.893 & 0.881 & 0.924 \\
     \midrule
@@ -871,7 +871,7 @@ legal form from the prompt costs 1.1--1.8\,pp Hits@1 on every split,
 most on held-out event type and least on held-out jurisdiction.
 Scale does not substitute: moving the bi-encoder backbone from
 E5-small (33M) to E5-base (110M) leaves TIME/EVENT unchanged
-($-0.2 / -1.2$\,pp; JURIS $+2.3$), so on this step at least the
+($-0.2 / {-}1.2$\,pp; JURIS $+2.3$), so on this step at least the
 ceiling looks structural rather than parametric.
 
 \paragraph{Explicit hard negatives slightly \emph{hurt} the
@@ -982,7 +982,7 @@ pretraining and ownership-graph context would address both.
 \label{sec:limitations}
 
 \paragraph{Headline numbers reflect the construction, not generic
-lifecycle ER.} Negatives are mined name-similar and positives are
+lifecycle ER\@.} Negatives are mined name-similar and positives are
 often name-different, so naive name similarity is anti-predictive on
 the released pool (\S\ref{ssec:anti}). Headline numbers measure the
 sub-problem this construction defines and should not be read as
@@ -993,7 +993,7 @@ inverts the picture. Token Jaccard reaches 0.41, the name+state
 cross-encoder falls below chance (0.07), and the full-record models
 recover only partly (0.21--0.24). Models trained on mined pools
 inherit their anti-similarity prior. Eligibility also conditions on
-a name-colliding neighbour existing (\S\ref{ssec:metrics}), which
+a name-colliding neighbor existing (\S\ref{ssec:metrics}), which
 amplifies the effect.
 
 \paragraph{Splits are pair-level, not entity-disjoint.} 32\% of
